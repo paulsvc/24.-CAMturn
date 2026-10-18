@@ -4,6 +4,25 @@
 
 ---
 
+## UI Screenshots & Showcase
+
+### 1. 3D Workbench Overview (Dark Theme — English)
+![3D Isometric Workbench Overview](docs/images/screenshot_1_3d_overview.png)
+
+### 2. White / Light CAD Theme & French Translation (Français)
+![White CAD Theme and French Translation](docs/images/screenshot_5_white_theme_french.png)
+
+### 3. 2D ZX Lathe Plane Roughing & Retracts
+![2D ZX Roughing Passes](docs/images/screenshot_2_roughing_2d_zx.png)
+
+### 4. 2D ZX Lathe Plane Profile Finishing with TNRC & Fitted G2/G3 Arcs
+![2D ZX Profile Finishing](docs/images/screenshot_3_finishing_tnrc_arcs.png)
+
+### 5. 3D Material Removal & Threading Simulation
+![3D Cut Simulation and Threading](docs/images/screenshot_4_3d_cut_simulation.png)
+
+---
+
 ## Key Capabilities
 
 1. **CAD Ingestion (`src/lathecam/cad/`):**
