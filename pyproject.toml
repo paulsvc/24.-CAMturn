@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lathecam"
+version = "0.1.0"
+description = "Desktop CAD/CAM application for CNC turning targeting LinuxCNC"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "LatheCAM Team" }]
+dependencies = [
+    "shapely>=2.0",
+    "pyclipper>=1.3.0",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "ezdxf>=1.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra -q"
