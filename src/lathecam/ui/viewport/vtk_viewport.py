@@ -5,7 +5,6 @@ from typing import Sequence
 import numpy as np
 import pyvista as pv
 from pyvistaqt import QtInteractor
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -15,19 +14,10 @@ from PySide6.QtWidgets import (
 )
 
 from lathecam.cad.geometry import Point2D
-from lathecam.cam.commands import MotionCmd
 from lathecam.cam.simulator import discretize_arc
 from lathecam.models.project import LatheProject
-from lathecam.ui.theme import (
-    COLOR_ARC_G2_G3,
-    COLOR_CUT_G1,
-    COLOR_RAPID_G0,
-    COLOR_THREAD_G33,
-    PART_MESH_COLOR,
-    STOCK_MESH_COLOR,
-    VIEWPORT_BG_BOTTOM,
-    VIEWPORT_BG_TOP,
-)
+from lathecam.ui.i18n import tr
+from lathecam.ui.theme import get_viewport_colors
 from lathecam.ui.viewport.base_canvas import BaseViewportCanvas
 
 
@@ -103,25 +93,24 @@ class VTKLatheViewport(BaseViewportCanvas):
         layout.setSpacing(0)
 
         # Top HUD bar for quick viewport controls and color legend
-        hud_bar = QWidget()
-        hud_bar.setStyleSheet("background-color: #1a202c; border-bottom: 1px solid #2d3748;")
-        hud_layout = QHBoxLayout(hud_bar)
+        self.hud_bar = QWidget()
+        hud_layout = QHBoxLayout(self.hud_bar)
         hud_layout.setContentsMargins(10, 4, 10, 4)
         hud_layout.setSpacing(8)
 
-        self.btn_iso = QPushButton("🧊 3D Isometric")
+        self.btn_iso = QPushButton(tr("viewport.btn_iso"))
         self.btn_iso.setObjectName("secondaryBtn")
         self.btn_iso.clicked.connect(self.set_isometric_view)
 
-        self.btn_zx = QPushButton("📐 2D ZX Lathe Plane")
+        self.btn_zx = QPushButton(tr("viewport.btn_zx"))
         self.btn_zx.setObjectName("secondaryBtn")
         self.btn_zx.clicked.connect(self.set_zx_plane_view)
 
-        self.btn_toggle_stock = QPushButton("📦 Stock: ON")
+        self.btn_toggle_stock = QPushButton(tr("viewport.btn_stock_on"))
         self.btn_toggle_stock.setObjectName("secondaryBtn")
         self.btn_toggle_stock.clicked.connect(self._toggle_stock)
 
-        self.btn_toggle_sim = QPushButton("🔬 Cut Sim: OFF")
+        self.btn_toggle_sim = QPushButton(tr("viewport.btn_sim_off"))
         self.btn_toggle_sim.setObjectName("secondaryBtn")
         self.btn_toggle_sim.clicked.connect(self._toggle_sim)
 
@@ -131,25 +120,41 @@ class VTKLatheViewport(BaseViewportCanvas):
         hud_layout.addWidget(self.btn_toggle_sim)
         hud_layout.addStretch()
 
-        legend = QLabel(
-            "<span style='color:#ef4444; font-weight:bold;'>━━ G0 Rapid</span> &nbsp;&nbsp;"
-            "<span style='color:#22c55e; font-weight:bold;'>━━ G1 Linear Cut</span> &nbsp;&nbsp;"
-            "<span style='color:#06b6d4; font-weight:bold;'>━━ G2/G3 Arc</span> &nbsp;&nbsp;"
-            "<span style='color:#eab308; font-weight:bold;'>━━ G76/G33 Thread</span>"
-        )
-        hud_layout.addWidget(legend)
-        layout.addWidget(hud_bar)
+        self.lbl_legend = QLabel(tr("viewport.legend"))
+        hud_layout.addWidget(self.lbl_legend)
+        layout.addWidget(self.hud_bar)
 
         # VTK Interactor
         self.plotter = QtInteractor(self)
-        self.plotter.set_background(VIEWPORT_BG_BOTTOM, top=VIEWPORT_BG_TOP)
+        layout.addWidget(self.plotter.interactor)
+
+        self.apply_theme_colors()
+
+    def apply_theme_colors(self) -> None:
+        colors = get_viewport_colors()
+        self.hud_bar.setStyleSheet(
+            f"background-color: {colors['hud_bg']}; border-bottom: 1px solid {colors['hud_border']};"
+        )
+        self.plotter.set_background(colors["bg_bottom"], top=colors["bg_top"])
         self.plotter.add_axes(
             xlabel="Z (Spindle)",
             ylabel="Y",
             zlabel="X (Radius)",
-            color="white",
+            color=colors["axes_color"],
         )
-        layout.addWidget(self.plotter.interactor)
+        if self._project is not None:
+            self._rebuild_scene(reset_camera=False)
+
+    def retranslate_ui(self) -> None:
+        self.btn_iso.setText(tr("viewport.btn_iso"))
+        self.btn_zx.setText(tr("viewport.btn_zx"))
+        self.btn_toggle_stock.setText(
+            tr("viewport.btn_stock_on") if self.show_stock else tr("viewport.btn_stock_off")
+        )
+        self.btn_toggle_sim.setText(
+            tr("viewport.btn_sim_on") if self.show_simulated_cut else tr("viewport.btn_sim_off")
+        )
+        self.lbl_legend.setText(tr("viewport.legend"))
 
     def render_project(
         self,
@@ -164,6 +169,7 @@ class VTKLatheViewport(BaseViewportCanvas):
         if self._project is None:
             return
 
+        colors = get_viewport_colors()
         self.plotter.clear_actors()
 
         st = self._project.stock
@@ -178,7 +184,7 @@ class VTKLatheViewport(BaseViewportCanvas):
                     sim_mesh = build_revolved_mesh(sim_pts, start_deg=70.0, end_deg=355.0)
                     self.plotter.add_mesh(
                         sim_mesh,
-                        color="#38bdf8",
+                        color=colors["sim_mesh"],
                         specular=0.65,
                         specular_power=30,
                         smooth_shading=True,
@@ -188,7 +194,7 @@ class VTKLatheViewport(BaseViewportCanvas):
                 part_mesh = build_revolved_mesh(contour_pts, start_deg=75.0, end_deg=355.0)
                 self.plotter.add_mesh(
                     part_mesh,
-                    color=PART_MESH_COLOR,
+                    color=colors["part_mesh"],
                     specular=0.65,
                     specular_power=30,
                     smooth_shading=True,
@@ -204,7 +210,7 @@ class VTKLatheViewport(BaseViewportCanvas):
                 stock_mesh = build_revolved_mesh(stock_pts, start_deg=110.0, end_deg=340.0, n_theta=48)
                 self.plotter.add_mesh(
                     stock_mesh,
-                    color=STOCK_MESH_COLOR,
+                    color=colors["stock_mesh"],
                     opacity=0.18,
                     smooth_shading=True,
                 )
@@ -214,7 +220,7 @@ class VTKLatheViewport(BaseViewportCanvas):
         profile_3d_closed = [(contour_pts[0][0], 0.0, 0.0)] + profile_3d + [(contour_pts[-1][0], 0.0, 0.0)]
         prof_line = build_polyline_polydata(profile_3d_closed)
         if prof_line is not None:
-            self.plotter.add_mesh(prof_line, color="#f8fafc", line_width=3.0)
+            self.plotter.add_mesh(prof_line, color=colors["profile_line"], line_width=3.0)
 
         if self.show_stock:
             stock_wire_3d = [
@@ -225,7 +231,7 @@ class VTKLatheViewport(BaseViewportCanvas):
             ]
             stock_line = build_polyline_polydata(stock_wire_3d)
             if stock_line is not None:
-                self.plotter.add_mesh(stock_line, color="#38bdf8", line_width=1.5)
+                self.plotter.add_mesh(stock_line, color=colors["stock_wire"], line_width=1.5)
 
         # Centerline axis (X_radius = 0)
         centerline_3d = [
@@ -234,7 +240,7 @@ class VTKLatheViewport(BaseViewportCanvas):
         ]
         cl_mesh = build_polyline_polydata(centerline_3d)
         if cl_mesh is not None:
-            self.plotter.add_mesh(cl_mesh, color="#64748b", line_width=1.2)
+            self.plotter.add_mesh(cl_mesh, color=colors["centerline"], line_width=1.2)
 
         # 4. Render Toolpaths (Filtered by active operation if selected, else all enabled operations)
         ops_to_draw = [
@@ -284,10 +290,10 @@ class VTKLatheViewport(BaseViewportCanvas):
                     g1_segments.append([(r_plane, 0.0, 0.0), (target_z, 0.0, 0.0)])
                     cur_z, cur_x = r_plane, 0.0
 
-        self._add_batched_lines(g0_segments, COLOR_RAPID_G0, line_width=1.4)
-        self._add_batched_lines(g1_segments, COLOR_CUT_G1, line_width=2.4)
-        self._add_batched_lines(arc_segments, COLOR_ARC_G2_G3, line_width=3.2)
-        self._add_batched_lines(thread_segments, COLOR_THREAD_G33, line_width=2.2)
+        self._add_batched_lines(g0_segments, colors["g0"], line_width=1.4)
+        self._add_batched_lines(g1_segments, colors["g1"], line_width=2.4)
+        self._add_batched_lines(arc_segments, colors["arc"], line_width=3.2)
+        self._add_batched_lines(thread_segments, colors["thread"], line_width=2.2)
 
         if reset_camera:
             self.set_isometric_view()
@@ -345,10 +351,14 @@ class VTKLatheViewport(BaseViewportCanvas):
 
     def _toggle_stock(self) -> None:
         self.show_stock = not self.show_stock
-        self.btn_toggle_stock.setText(f"📦 Stock: {'ON' if self.show_stock else 'OFF'}")
+        self.btn_toggle_stock.setText(
+            tr("viewport.btn_stock_on") if self.show_stock else tr("viewport.btn_stock_off")
+        )
         self._rebuild_scene(reset_camera=False)
 
     def _toggle_sim(self) -> None:
         self.show_simulated_cut = not self.show_simulated_cut
-        self.btn_toggle_sim.setText(f"🔬 Cut Sim: {'ON' if self.show_simulated_cut else 'OFF'}")
+        self.btn_toggle_sim.setText(
+            tr("viewport.btn_sim_on") if self.show_simulated_cut else tr("viewport.btn_sim_off")
+        )
         self._rebuild_scene(reset_camera=False)

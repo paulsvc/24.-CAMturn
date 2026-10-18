@@ -12,13 +12,15 @@ from PySide6.QtWidgets import (
 )
 
 from lathecam.models.project import LatheProject
+from lathecam.ui.i18n import tr
+from lathecam.ui.theme import get_current_theme
 
 
 class ToolTurretDock(QDockWidget):
-    """Displays the LinuxCNC Tool Table & Turret Library (ISO Insert Geometry, Nose Radius, Orientation 1-9)."""
+    """Displays the Tool Table & Turret Library (ISO Insert Geometry, Nose Radius, Orientation 1-9)."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__("Tool Turret Library (LinuxCNC)", parent)
+        super().__init__(tr("tools.dock_title"), parent)
         self.setObjectName("ToolTurretDock")
         self.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea
@@ -26,19 +28,14 @@ class ToolTurretDock(QDockWidget):
             | Qt.DockWidgetArea.BottomDockWidgetArea
         )
 
+        self._project: LatheProject | None = None
+
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(6, 6, 6, 6)
 
         self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels([
-            "Pocket",
-            "Description",
-            "Shape",
-            "Nose R",
-            "Clearance / Lead",
-            "Orient (Q)",
-        ])
+        self._update_headers()
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -54,13 +51,31 @@ class ToolTurretDock(QDockWidget):
         layout.addWidget(self.table)
         self.setWidget(container)
 
+    def _update_headers(self) -> None:
+        self.table.setHorizontalHeaderLabels([
+            tr("tools.col_pocket"),
+            tr("tools.col_desc"),
+            tr("tools.col_shape"),
+            tr("tools.col_nose_r"),
+            tr("tools.col_angles"),
+            tr("tools.col_orient"),
+        ])
+
+    def retranslate_ui(self) -> None:
+        self.setWindowTitle(tr("tools.dock_title"))
+        self._update_headers()
+        if self._project is not None:
+            self.set_project(self._project)
+
     def set_project(self, project: LatheProject) -> None:
+        self._project = project
+        is_light = get_current_theme() == "light"
         tools = sorted(project.tools.values(), key=lambda t: t.tool_id)
         self.table.setRowCount(len(tools))
 
         for row, tool in enumerate(tools):
             t_item = QTableWidgetItem(f"T{tool.tool_id}")
-            t_item.setForeground(QBrush(QColor("#38bdf8")))
+            t_item.setForeground(QBrush(QColor("#0284c7" if is_light else "#38bdf8")))
             self.table.setItem(row, 0, t_item)
 
             self.table.setItem(row, 1, QTableWidgetItem(tool.name))
@@ -72,5 +87,5 @@ class ToolTurretDock(QDockWidget):
                 QTableWidgetItem(f"{tool.clearance_angle_deg:.0f}° / {tool.lead_angle_deg:.0f}°"),
             )
             q_item = QTableWidgetItem(f"Q{tool.orientation.value}")
-            q_item.setForeground(QBrush(QColor("#f59e0b")))
+            q_item.setForeground(QBrush(QColor("#d97706" if is_light else "#f59e0b")))
             self.table.setItem(row, 5, q_item)

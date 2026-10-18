@@ -46,3 +46,25 @@ def test_project_lcam_save_load(tmp_path) -> None:
     assert len(loaded.contour.points) == len(proj.contour.points)
     assert "G50 S" in loaded.gcode_text
 
+
+def test_i18n_french_and_light_theme() -> None:
+    from lathecam.ui.i18n import get_language, set_language, tr
+    from lathecam.ui.theme import get_viewport_colors
+
+    set_language("fr")
+    assert get_language() == "fr"
+    assert "Arbre FeatureManager" in tr("tree.dock_title")
+    assert "Inspecteur de Propriétés" in tr("props.dock_title")
+    assert "Thème Clair" in tr("toolbar.theme_light")
+
+    set_language("en")
+    assert get_language() == "en"
+    assert "FeatureManager Tree" in tr("tree.dock_title")
+
+    light_colors = get_viewport_colors("light")
+    dark_colors = get_viewport_colors("dark")
+    assert light_colors["bg_bottom"] == "#f8fafc"
+    assert light_colors["profile_line"] == "#0f172a"
+    assert dark_colors["profile_line"] == "#f8fafc"
+
+

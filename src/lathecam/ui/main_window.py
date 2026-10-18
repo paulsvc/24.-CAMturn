@@ -5,7 +5,10 @@ import uuid
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtGui import QAction, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
     QFileDialog,
+    QLabel,
     QMainWindow,
     QMessageBox,
     QStatusBar,
@@ -20,6 +23,8 @@ from lathecam.ui.docks.gcode_dock import GCodePreviewDock
 from lathecam.ui.docks.properties_dock import PropertiesInspectorDock
 from lathecam.ui.docks.tools_dock import ToolTurretDock
 from lathecam.ui.docks.tree_dock import FeatureTreeDock
+from lathecam.ui.i18n import get_language, set_language, tr
+from lathecam.ui.theme import apply_theme, get_current_theme
 from lathecam.ui.viewport.vtk_viewport import VTKLatheViewport
 
 
@@ -28,7 +33,7 @@ class LatheCAMMainWindow(QMainWindow):
 
     def __init__(self, project: LatheProject | None = None) -> None:
         super().__init__()
-        self.setWindowTitle("LatheCAM — CNC Turning CAD/CAM Workbench (LinuxCNC G18 / G7)")
+        self.setWindowTitle(tr("window.title"))
         self.resize(1540, 940)
 
         self.project: LatheProject = project or LatheProject.create_demo_project()
@@ -46,59 +51,81 @@ class LatheCAMMainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
-        act_open = QAction("📂 Import STEP / DXF", self)
-        act_open.triggered.connect(self.action_import_cad)
-        toolbar.addAction(act_open)
+        self.act_open = QAction(tr("toolbar.import_cad"), self)
+        self.act_open.triggered.connect(self.action_import_cad)
+        toolbar.addAction(self.act_open)
 
-        act_open_proj = QAction("📁 Open .lcam", self)
-        act_open_proj.triggered.connect(self.action_open_project)
-        toolbar.addAction(act_open_proj)
+        self.act_open_proj = QAction(tr("toolbar.open_lcam"), self)
+        self.act_open_proj.triggered.connect(self.action_open_project)
+        toolbar.addAction(self.act_open_proj)
 
-        act_save_proj = QAction("💾 Save .lcam", self)
-        act_save_proj.triggered.connect(self.action_save_project)
-        toolbar.addAction(act_save_proj)
+        self.act_save_proj = QAction(tr("toolbar.save_lcam"), self)
+        self.act_save_proj.triggered.connect(self.action_save_project)
+        toolbar.addAction(self.act_save_proj)
 
-        act_demo = QAction("⚙ Load Demo Shaft", self)
-        act_demo.triggered.connect(self.action_load_demo)
-        toolbar.addAction(act_demo)
-
-        toolbar.addSeparator()
-
-        act_all_ops = QAction("👁 View All Operations", self)
-        act_all_ops.triggered.connect(self.action_view_all_operations)
-        toolbar.addAction(act_all_ops)
+        self.act_demo = QAction(tr("toolbar.load_demo"), self)
+        self.act_demo.triggered.connect(self.action_load_demo)
+        toolbar.addAction(self.act_demo)
 
         toolbar.addSeparator()
 
-        act_add_face = QAction("➕ Face Op", self)
-        act_add_face.triggered.connect(lambda: self.action_add_operation(OperationType.FACING))
-        toolbar.addAction(act_add_face)
-
-        act_add_rough = QAction("➕ OD Rough Op", self)
-        act_add_rough.triggered.connect(lambda: self.action_add_operation(OperationType.ROUGHING))
-        toolbar.addAction(act_add_rough)
-
-        act_add_finish = QAction("➕ OD Finish Op", self)
-        act_add_finish.triggered.connect(lambda: self.action_add_operation(OperationType.FINISHING))
-        toolbar.addAction(act_add_finish)
-
-        act_add_thread = QAction("➕ Thread G76", self)
-        act_add_thread.triggered.connect(lambda: self.action_add_operation(OperationType.THREADING))
-        toolbar.addAction(act_add_thread)
-
-        act_add_drill = QAction("➕ Drill G83", self)
-        act_add_drill.triggered.connect(lambda: self.action_add_operation(OperationType.DRILLING))
-        toolbar.addAction(act_add_drill)
-
-        act_add_part = QAction("➕ Peck Part-Off", self)
-        act_add_part.triggered.connect(lambda: self.action_add_operation(OperationType.PARTING))
-        toolbar.addAction(act_add_part)
+        self.act_all_ops = QAction(tr("toolbar.view_all"), self)
+        self.act_all_ops.triggered.connect(self.action_view_all_operations)
+        toolbar.addAction(self.act_all_ops)
 
         toolbar.addSeparator()
 
-        act_export = QAction("💾 Post G-Code", self)
-        act_export.triggered.connect(self.action_export_gcode)
-        toolbar.addAction(act_export)
+        self.act_add_face = QAction(tr("toolbar.add_face"), self)
+        self.act_add_face.triggered.connect(lambda: self.action_add_operation(OperationType.FACING))
+        toolbar.addAction(self.act_add_face)
+
+        self.act_add_rough = QAction(tr("toolbar.add_rough"), self)
+        self.act_add_rough.triggered.connect(lambda: self.action_add_operation(OperationType.ROUGHING))
+        toolbar.addAction(self.act_add_rough)
+
+        self.act_add_finish = QAction(tr("toolbar.add_finish"), self)
+        self.act_add_finish.triggered.connect(lambda: self.action_add_operation(OperationType.FINISHING))
+        toolbar.addAction(self.act_add_finish)
+
+        self.act_add_thread = QAction(tr("toolbar.add_thread"), self)
+        self.act_add_thread.triggered.connect(lambda: self.action_add_operation(OperationType.THREADING))
+        toolbar.addAction(self.act_add_thread)
+
+        self.act_add_drill = QAction(tr("toolbar.add_drill"), self)
+        self.act_add_drill.triggered.connect(lambda: self.action_add_operation(OperationType.DRILLING))
+        toolbar.addAction(self.act_add_drill)
+
+        self.act_add_part = QAction(tr("toolbar.add_part"), self)
+        self.act_add_part.triggered.connect(lambda: self.action_add_operation(OperationType.PARTING))
+        toolbar.addAction(self.act_add_part)
+
+        toolbar.addSeparator()
+
+        self.act_export = QAction(tr("toolbar.post_gcode"), self)
+        self.act_export.triggered.connect(self.action_export_gcode)
+        toolbar.addAction(self.act_export)
+
+        toolbar.addSeparator()
+
+        # Theme Toggle Action (Dark <-> White)
+        self.act_theme = QAction(
+            tr("toolbar.theme_light") if get_current_theme() == "dark" else tr("toolbar.theme_dark"),
+            self,
+        )
+        self.act_theme.triggered.connect(self.action_toggle_theme)
+        toolbar.addAction(self.act_theme)
+
+        # Language Selector Combo (English / Français)
+        self.lbl_lang = QLabel(f" {tr('toolbar.lang_label')} ")
+        toolbar.addWidget(self.lbl_lang)
+        self.combo_lang = QComboBox()
+        self.combo_lang.addItem("English (EN)", "en")
+        self.combo_lang.addItem("Français (FR)", "fr")
+        idx = self.combo_lang.findData(get_language())
+        if idx >= 0:
+            self.combo_lang.setCurrentIndex(idx)
+        self.combo_lang.currentIndexChanged.connect(self._on_language_changed)
+        toolbar.addWidget(self.combo_lang)
 
     def _setup_central_viewport(self) -> None:
         self.viewport = VTKLatheViewport(self)
@@ -141,9 +168,7 @@ class LatheCAMMainWindow(QMainWindow):
     def _setup_statusbar(self) -> None:
         status = QStatusBar(self)
         self.setStatusBar(status)
-        status.showMessage(
-            "Ready • Kernel: Shapely 2.2 (GEOS) + PyClipper • Post: LinuxCNC G18 ZX Plane / G7 Diameter Mode"
-        )
+        status.showMessage(tr("status.ready"))
 
     def _sync_all_views(self) -> None:
         self.tree_dock.set_project(self.project)
@@ -152,11 +177,71 @@ class LatheCAMMainWindow(QMainWindow):
         self.gcode_dock.set_gcode(self.project.gcode_text)
         self.viewport.render_project(self.project, active_op_id=self._active_op_id)
 
+    def set_theme_mode(self, mode: str) -> None:
+        """Applies 'dark' or 'light' (White) theme across the entire application and VTK viewport."""
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            apply_theme(app, mode)
+        self.act_theme.setText(
+            tr("toolbar.theme_light") if get_current_theme() == "dark" else tr("toolbar.theme_dark")
+        )
+        self.viewport.apply_theme_colors()
+        self.tree_dock.retranslate_ui()
+        self.tools_dock.retranslate_ui()
+        self.props_dock.retranslate_ui()
+        self.gcode_dock.retranslate_ui()
+        self.statusBar().showMessage(tr("status.theme_changed", theme=get_current_theme().upper()))
+
+    def action_toggle_theme(self) -> None:
+        next_theme = "light" if get_current_theme() == "dark" else "dark"
+        self.set_theme_mode(next_theme)
+
+    def set_ui_language(self, lang: str) -> None:
+        """Switches UI language ('en' or 'fr') and live-updates all docks, buttons, and labels."""
+        set_language(lang)
+        idx = self.combo_lang.findData(lang)
+        if idx >= 0 and self.combo_lang.currentIndex() != idx:
+            self.combo_lang.blockSignals(True)
+            self.combo_lang.setCurrentIndex(idx)
+            self.combo_lang.blockSignals(False)
+        self.retranslate_ui()
+
+    def _on_language_changed(self) -> None:
+        lang = self.combo_lang.currentData()
+        if lang:
+            self.set_ui_language(str(lang))
+
+    def retranslate_ui(self) -> None:
+        self.setWindowTitle(tr("window.title"))
+        self.act_open.setText(tr("toolbar.import_cad"))
+        self.act_open_proj.setText(tr("toolbar.open_lcam"))
+        self.act_save_proj.setText(tr("toolbar.save_lcam"))
+        self.act_demo.setText(tr("toolbar.load_demo"))
+        self.act_all_ops.setText(tr("toolbar.view_all"))
+        self.act_add_face.setText(tr("toolbar.add_face"))
+        self.act_add_rough.setText(tr("toolbar.add_rough"))
+        self.act_add_finish.setText(tr("toolbar.add_finish"))
+        self.act_add_thread.setText(tr("toolbar.add_thread"))
+        self.act_add_drill.setText(tr("toolbar.add_drill"))
+        self.act_add_part.setText(tr("toolbar.add_part"))
+        self.act_export.setText(tr("toolbar.post_gcode"))
+        self.act_theme.setText(
+            tr("toolbar.theme_light") if get_current_theme() == "dark" else tr("toolbar.theme_dark")
+        )
+
+        self.tree_dock.retranslate_ui()
+        self.tools_dock.retranslate_ui()
+        self.props_dock.retranslate_ui()
+        self.gcode_dock.retranslate_ui()
+        self.viewport.retranslate_ui()
+        self.statusBar().showMessage(tr("status.lang_changed"))
+
     def _on_dialect_changed(self, dialect: str) -> None:
         self.project.post_dialect = dialect
         self.project.recalculate_all()
+        self.tree_dock.refresh()
         self.gcode_dock.set_gcode(self.project.gcode_text)
-        self.statusBar().showMessage(f"Switched Post-Processor Dialect to: {dialect.upper()}")
+        self.statusBar().showMessage(tr("status.dialect_switched", dialect=dialect.upper()))
 
     def _on_tree_node_selected(self, node_kind: str, node_id: str) -> None:
         if node_kind == "operation":
@@ -165,12 +250,12 @@ class LatheCAMMainWindow(QMainWindow):
             self.props_dock.inspect_operation(op)
             if op is not None:
                 self.statusBar().showMessage(
-                    f"Inspecting {op.name} • Tool T{op.tool_id} • {len(op.commands)} MotionCmds"
+                    tr("status.inspecting", name=op.name, tool_id=op.tool_id, count=len(op.commands))
                 )
         else:
             self._active_op_id = None
             self.props_dock.inspect_operation(None)
-            self.statusBar().showMessage(f"Showing all enabled operations for '{self.project.name}'")
+            self.statusBar().showMessage(tr("status.showing_all", name=self.project.name))
 
         self.viewport.render_project(self.project, active_op_id=self._active_op_id)
 
@@ -191,7 +276,7 @@ class LatheCAMMainWindow(QMainWindow):
         self.project = LatheProject.create_demo_project()
         self._active_op_id = None
         self._sync_all_views()
-        self.statusBar().showMessage("Loaded Stepped Threaded Drive Shaft Demo Project")
+        self.statusBar().showMessage(tr("status.demo_loaded"))
 
     def action_open_project(self) -> None:
         filepath, _ = QFileDialog.getOpenFileName(
@@ -206,7 +291,7 @@ class LatheCAMMainWindow(QMainWindow):
             self.project = LatheProject.load_from_file(filepath)
             self._active_op_id = None
             self._sync_all_views()
-            self.statusBar().showMessage(f"Loaded project from {filepath}")
+            self.statusBar().showMessage(tr("status.project_loaded", path=filepath))
         except Exception as exc:
             QMessageBox.critical(self, "Project Load Error", f"Failed to load {filepath}:\n{exc}")
 
@@ -221,7 +306,7 @@ class LatheCAMMainWindow(QMainWindow):
             return
         try:
             self.project.save_to_file(filepath)
-            self.statusBar().showMessage(f"Saved project to {filepath}")
+            self.statusBar().showMessage(tr("status.project_saved", path=filepath))
         except Exception as exc:
             QMessageBox.critical(self, "Project Save Error", f"Failed to save {filepath}:\n{exc}")
 
@@ -258,7 +343,9 @@ class LatheCAMMainWindow(QMainWindow):
             )
             self._on_project_modified()
             self._sync_all_views()
-            self.statusBar().showMessage(f"Successfully imported {path.name} ({len(contour.points)} profile points)")
+            self.statusBar().showMessage(
+                tr("status.cad_imported", name=path.name, count=len(contour.points))
+            )
         except Exception as exc:
             QMessageBox.critical(self, "CAD Import Error", f"Failed to import {path.name}:\n{exc}")
 
@@ -297,7 +384,7 @@ class LatheCAMMainWindow(QMainWindow):
         if not filepath:
             return
         Path(filepath).write_text(self.project.gcode_text, encoding="utf-8")
-        self.statusBar().showMessage(f"Exported G-Code to {filepath}")
+        self.statusBar().showMessage(tr("status.gcode_exported", path=filepath))
 
     def capture_screenshot(self, output_path: str | Path) -> Path:
         """Captures a composite high-DPI screenshot of the entire Qt MainWindow + VTK OpenGL framebuffer."""

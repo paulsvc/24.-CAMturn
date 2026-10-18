@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
 from lathecam.cam.finishing import CompensationMode
 from lathecam.models.project import LatheProject, OperationNode, OperationType
 from lathecam.models.stock import Stock
+from lathecam.ui.i18n import tr
+from lathecam.ui.theme import get_current_theme
 
 
 class PropertiesInspectorDock(QDockWidget):
@@ -25,7 +27,7 @@ class PropertiesInspectorDock(QDockWidget):
     parameters_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__("Property Inspector", parent)
+        super().__init__(tr("props.dock_title"), parent)
         self.setObjectName("PropertiesInspectorDock")
         self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
 
@@ -39,7 +41,7 @@ class PropertiesInspectorDock(QDockWidget):
         main_layout.setSpacing(10)
 
         # 1. Stock Setup GroupBox
-        self.stock_group = QGroupBox("Workpiece Stock Setup")
+        self.stock_group = QGroupBox(tr("props.stock_group"))
         stock_form = QFormLayout(self.stock_group)
 
         self.spin_stock_od = QDoubleSpinBox()
@@ -60,17 +62,21 @@ class PropertiesInspectorDock(QDockWidget):
         self.spin_stock_z_end.setDecimals(2)
         self.spin_stock_z_end.valueChanged.connect(self._on_stock_edited)
 
-        stock_form.addRow("Stock Outer Ø (OD):", self.spin_stock_od)
-        stock_form.addRow("Face Allowance (Z+):", self.spin_stock_z_start)
-        stock_form.addRow("Chuck Limit (Z-):", self.spin_stock_z_end)
+        self.lbl_stock_od = QLabel(tr("props.stock_od"))
+        self.lbl_stock_z_start = QLabel(tr("props.stock_z_start"))
+        self.lbl_stock_z_end = QLabel(tr("props.stock_z_end"))
+
+        stock_form.addRow(self.lbl_stock_od, self.spin_stock_od)
+        stock_form.addRow(self.lbl_stock_z_start, self.spin_stock_z_start)
+        stock_form.addRow(self.lbl_stock_z_end, self.spin_stock_z_end)
         main_layout.addWidget(self.stock_group)
 
         # 2. Operation Parameters GroupBox
-        self.op_group = QGroupBox("Selected CAM Operation")
+        self.op_group = QGroupBox(tr("props.op_group"))
         op_form = QFormLayout(self.op_group)
 
-        self.lbl_op_title = QLabel("All Operations (Overview)")
-        self.lbl_op_title.setStyleSheet("color: #60a5fa; font-weight: bold;")
+        self.lbl_op_title = QLabel(tr("props.all_ops_overview"))
+        self.lbl_op_title.setStyleSheet("color: #2563eb; font-weight: bold;")
 
         self.combo_tool = QComboBox()
         self.combo_tool.currentIndexChanged.connect(self._on_op_edited)
@@ -110,8 +116,8 @@ class PropertiesInspectorDock(QDockWidget):
         self.spin_max_rpm.valueChanged.connect(self._on_op_edited)
 
         self.combo_comp = QComboBox()
-        self.combo_comp.addItem("Computer TNRC (PyClipper)", CompensationMode.COMPUTER)
-        self.combo_comp.addItem("Controller Comp (G41/G42)", CompensationMode.CONTROLLER)
+        self.combo_comp.addItem(tr("props.comp_computer"), CompensationMode.COMPUTER)
+        self.combo_comp.addItem(tr("props.comp_controller"), CompensationMode.CONTROLLER)
         self.combo_comp.currentIndexChanged.connect(self._on_op_edited)
 
         self.spin_pitch = QDoubleSpinBox()
@@ -128,35 +134,85 @@ class PropertiesInspectorDock(QDockWidget):
         self.spin_peck.setDecimals(2)
         self.spin_peck.valueChanged.connect(self._on_op_edited)
 
-        op_form.addRow("Operation:", self.lbl_op_title)
-        op_form.addRow("Turret Tool:", self.combo_tool)
-        op_form.addRow("Depth of Cut (DOC):", self.spin_doc)
-        op_form.addRow("Finish Allowance:", self.spin_allowance)
-        op_form.addRow("Feed Rate (G95):", self.spin_feed)
-        op_form.addRow("CSS Speed (G96 S):", self.spin_css)
-        op_form.addRow("Max Spindle (G96 D):", self.spin_max_rpm)
-        op_form.addRow("Nose Comp Mode:", self.combo_comp)
-        op_form.addRow("Thread Pitch (P):", self.spin_pitch)
-        op_form.addRow("Peck Depth (Q):", self.spin_peck)
+        self.lbl_op_row = QLabel(tr("props.lbl_op"))
+        self.lbl_tool_row = QLabel(tr("props.lbl_tool"))
+        self.lbl_doc_row = QLabel(tr("props.lbl_doc"))
+        self.lbl_allowance_row = QLabel(tr("props.lbl_allowance"))
+        self.lbl_feed_row = QLabel(tr("props.lbl_feed"))
+        self.lbl_css_row = QLabel(tr("props.lbl_css"))
+        self.lbl_max_rpm_row = QLabel(tr("props.lbl_max_rpm"))
+        self.lbl_comp_row = QLabel(tr("props.lbl_comp"))
+        self.lbl_pitch_row = QLabel(tr("props.lbl_pitch"))
+        self.lbl_peck_row = QLabel(tr("props.lbl_peck"))
+
+        op_form.addRow(self.lbl_op_row, self.lbl_op_title)
+        op_form.addRow(self.lbl_tool_row, self.combo_tool)
+        op_form.addRow(self.lbl_doc_row, self.spin_doc)
+        op_form.addRow(self.lbl_allowance_row, self.spin_allowance)
+        op_form.addRow(self.lbl_feed_row, self.spin_feed)
+        op_form.addRow(self.lbl_css_row, self.spin_css)
+        op_form.addRow(self.lbl_max_rpm_row, self.spin_max_rpm)
+        op_form.addRow(self.lbl_comp_row, self.combo_comp)
+        op_form.addRow(self.lbl_pitch_row, self.spin_pitch)
+        op_form.addRow(self.lbl_peck_row, self.spin_peck)
 
         main_layout.addWidget(self.op_group)
 
         # 3. Simulation & Verification Metrics GroupBox
-        self.sim_group = QGroupBox("2D Shapely Verification")
+        self.sim_group = QGroupBox(tr("props.sim_group"))
         sim_form = QFormLayout(self.sim_group)
+        self.lbl_rest_area_row = QLabel(tr("props.lbl_rest_area"))
+        self.lbl_gouge_check_row = QLabel(tr("props.lbl_gouge_check"))
         self.lbl_rest_area = QLabel("0.00 mm²")
-        self.lbl_gouge_status = QLabel("✓ Collision-Free (0.00 mm²)")
-        self.lbl_gouge_status.setStyleSheet("color: #22c55e; font-weight: bold;")
-        sim_form.addRow("Uncut Rest Area:", self.lbl_rest_area)
-        sim_form.addRow("Gouge Check:", self.lbl_gouge_status)
+        self.lbl_gouge_status = QLabel(tr("props.collision_free"))
+        self.lbl_gouge_status.setStyleSheet("color: #16a34a; font-weight: bold;")
+        sim_form.addRow(self.lbl_rest_area_row, self.lbl_rest_area)
+        sim_form.addRow(self.lbl_gouge_check_row, self.lbl_gouge_status)
         main_layout.addWidget(self.sim_group)
 
-        self.btn_recalc = QPushButton("⟳ Recalculate Toolpaths & G-Code")
+        self.btn_recalc = QPushButton(tr("props.btn_recalc"))
         self.btn_recalc.clicked.connect(self.parameters_changed.emit)
         main_layout.addWidget(self.btn_recalc)
 
         main_layout.addStretch()
         self.setWidget(container)
+
+    def retranslate_ui(self) -> None:
+        self.setWindowTitle(tr("props.dock_title"))
+        self.stock_group.setTitle(tr("props.stock_group"))
+        self.lbl_stock_od.setText(tr("props.stock_od"))
+        self.lbl_stock_z_start.setText(tr("props.stock_z_start"))
+        self.lbl_stock_z_end.setText(tr("props.stock_z_end"))
+
+        self.op_group.setTitle(tr("props.op_group"))
+        self.lbl_op_row.setText(tr("props.lbl_op"))
+        self.lbl_tool_row.setText(tr("props.lbl_tool"))
+        self.lbl_doc_row.setText(tr("props.lbl_doc"))
+        self.lbl_allowance_row.setText(tr("props.lbl_allowance"))
+        self.lbl_feed_row.setText(tr("props.lbl_feed"))
+        self.lbl_css_row.setText(tr("props.lbl_css"))
+        self.lbl_max_rpm_row.setText(tr("props.lbl_max_rpm"))
+        self.lbl_comp_row.setText(tr("props.lbl_comp"))
+        self.lbl_pitch_row.setText(tr("props.lbl_pitch"))
+        self.lbl_peck_row.setText(tr("props.lbl_peck"))
+
+        self._updating = True
+        self.combo_comp.setItemText(0, tr("props.comp_computer"))
+        self.combo_comp.setItemText(1, tr("props.comp_controller"))
+        self._updating = False
+
+        self.sim_group.setTitle(tr("props.sim_group"))
+        self.lbl_rest_area_row.setText(tr("props.lbl_rest_area"))
+        self.lbl_gouge_check_row.setText(tr("props.lbl_gouge_check"))
+        self.btn_recalc.setText(tr("props.btn_recalc"))
+
+        is_light = get_current_theme() == "light"
+        self.lbl_op_title.setStyleSheet(
+            f"color: {'#1d4ed8' if is_light else '#60a5fa'}; font-weight: bold;"
+        )
+        if self._active_op is None:
+            self.lbl_op_title.setText(tr("props.all_ops_overview"))
+        self.update_simulation_labels()
 
     def set_project(self, project: LatheProject) -> None:
         self._project = project
@@ -180,19 +236,24 @@ class PropertiesInspectorDock(QDockWidget):
         if self._project is None or self._project.simulation_result is None:
             return
         sim = self._project.simulation_result
+        is_light = get_current_theme() == "light"
         self.lbl_rest_area.setText(f"{sim.rest_area_mm2:.2f} mm²")
         if sim.is_gouged:
-            self.lbl_gouge_status.setText(f"⚠ GOUGE DETECTED ({sim.gouge_area_mm2:.3f} mm²)")
-            self.lbl_gouge_status.setStyleSheet("color: #ef4444; font-weight: bold;")
+            self.lbl_gouge_status.setText(tr("props.gouge_detected", area=sim.gouge_area_mm2))
+            self.lbl_gouge_status.setStyleSheet(
+                f"color: {'#dc2626' if is_light else '#ef4444'}; font-weight: bold;"
+            )
         else:
-            self.lbl_gouge_status.setText("✓ Collision-Free (0.000 mm²)")
-            self.lbl_gouge_status.setStyleSheet("color: #22c55e; font-weight: bold;")
+            self.lbl_gouge_status.setText(tr("props.collision_free"))
+            self.lbl_gouge_status.setStyleSheet(
+                f"color: {'#15803d' if is_light else '#22c55e'}; font-weight: bold;"
+            )
 
     def inspect_operation(self, op: OperationNode | None) -> None:
         self._active_op = op
         self._updating = True
         if op is None:
-            self.lbl_op_title.setText("All Operations (Full Setup)")
+            self.lbl_op_title.setText(tr("props.all_ops_overview"))
             self.op_group.setEnabled(False)
             self._updating = False
             return

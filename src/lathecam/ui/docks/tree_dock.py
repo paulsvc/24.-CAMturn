@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
 )
 
 from lathecam.models.project import LatheProject
+from lathecam.ui.i18n import tr
+from lathecam.ui.theme import get_current_theme
 
 
 class FeatureTreeDock(QDockWidget):
@@ -22,7 +24,7 @@ class FeatureTreeDock(QDockWidget):
     operations_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__("FeatureManager Tree", parent)
+        super().__init__(tr("tree.dock_title"), parent)
         self.setObjectName("FeatureTreeDock")
         self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
 
@@ -35,7 +37,7 @@ class FeatureTreeDock(QDockWidget):
         layout.setSpacing(6)
 
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["Feature / Operation", "Tool / Status"])
+        self.tree.setHeaderLabels([tr("tree.col_feature"), tr("tree.col_status")])
         self.tree.setColumnWidth(0, 210)
         self.tree.setAlternatingRowColors(True)
         self.tree.itemSelectionChanged.connect(self._on_selection_changed)
@@ -43,15 +45,15 @@ class FeatureTreeDock(QDockWidget):
         layout.addWidget(self.tree)
 
         btn_row = QHBoxLayout()
-        self.btn_up = QPushButton("▲ Up")
+        self.btn_up = QPushButton(tr("tree.btn_up"))
         self.btn_up.setObjectName("secondaryBtn")
         self.btn_up.clicked.connect(self._move_op_up)
 
-        self.btn_down = QPushButton("▼ Down")
+        self.btn_down = QPushButton(tr("tree.btn_down"))
         self.btn_down.setObjectName("secondaryBtn")
         self.btn_down.clicked.connect(self._move_op_down)
 
-        self.btn_delete = QPushButton("✕ Remove")
+        self.btn_delete = QPushButton(tr("tree.btn_remove"))
         self.btn_delete.setObjectName("secondaryBtn")
         self.btn_delete.clicked.connect(self._delete_selected_op)
 
@@ -62,6 +64,14 @@ class FeatureTreeDock(QDockWidget):
 
         self.setWidget(container)
 
+    def retranslate_ui(self) -> None:
+        self.setWindowTitle(tr("tree.dock_title"))
+        self.tree.setHeaderLabels([tr("tree.col_feature"), tr("tree.col_status")])
+        self.btn_up.setText(tr("tree.btn_up"))
+        self.btn_down.setText(tr("tree.btn_down"))
+        self.btn_delete.setText(tr("tree.btn_remove"))
+        self.refresh()
+
     def set_project(self, project: LatheProject) -> None:
         self._project = project
         self.refresh()
@@ -70,8 +80,8 @@ class FeatureTreeDock(QDockWidget):
         if self._project is None:
             return
 
-        # Preserve current selection
         selected_id = self.current_selected_op_id()
+        is_light = get_current_theme() == "light"
 
         self._updating = True
         self.tree.clear()
@@ -84,27 +94,34 @@ class FeatureTreeDock(QDockWidget):
         st = self._project.stock
         stock_item = QTreeWidgetItem(
             root,
-            ["📦 Stock Cylinder", f"Ø{st.od_mm:.1f} × {st.length:.1f}mm"],
+            [tr("tree.stock_node"), f"Ø{st.od_mm:.1f} × {st.length:.1f}mm"],
         )
         stock_item.setData(0, Qt.ItemDataRole.UserRole, ("stock", "stock"))
-        stock_item.setForeground(1, QBrush(QColor("#38bdf8")))
+        stock_item.setForeground(1, QBrush(QColor("#0284c7" if is_light else "#38bdf8")))
 
         # 2. CAD Profile Node
         c = self._project.contour
         prof_item = QTreeWidgetItem(
             root,
-            ["📐 2D Turning Silhouette", f"{len(c.points)} pts (Ø{c.x_max*2:.1f}mm)"],
+            [tr("tree.profile_node"), f"{len(c.points)} pts (Ø{c.x_max*2:.1f}mm)"],
         )
         prof_item.setData(0, Qt.ItemDataRole.UserRole, ("profile", "profile"))
-        prof_item.setForeground(1, QBrush(QColor("#a78bfa")))
+        prof_item.setForeground(1, QBrush(QColor("#7c3aed" if is_light else "#a78bfa")))
 
         # 3. Operations Folder
-        ops_root = QTreeWidgetItem(root, ["🛠 Turning Setup (LinuxCNC)", f"{len(self._project.operations)} Ops"])
+        dialect_label = "Fanuc 0i-TF" if self._project.post_dialect == "fanuc" else "LinuxCNC"
+        ops_root = QTreeWidgetItem(
+            root,
+            [
+                tr("tree.ops_folder", dialect=dialect_label),
+                tr("tree.ops_count", count=len(self._project.operations)),
+            ],
+        )
         ops_root.setData(0, Qt.ItemDataRole.UserRole, ("ops_folder", "ops_folder"))
         ops_root.setExpanded(True)
 
         for op in self._project.operations:
-            status_str = f"T{op.tool_id} • {len(op.commands)} cmds"
+            status_str = tr("tree.cmds_count", tool_id=op.tool_id, count=len(op.commands))
             if op.warning_message:
                 status_str = f"⚠ {op.warning_message[:22]}"
 
@@ -117,13 +134,13 @@ class FeatureTreeDock(QDockWidget):
             op_item.setData(0, Qt.ItemDataRole.UserRole, ("operation", op.op_id))
 
             if op.warning_message:
-                op_item.setForeground(1, QBrush(QColor("#ef4444")))
+                op_item.setForeground(1, QBrush(QColor("#dc2626" if is_light else "#ef4444")))
                 op_item.setToolTip(1, op.warning_message)
             elif not op.enabled:
-                op_item.setForeground(0, QBrush(QColor("#64748b")))
-                op_item.setForeground(1, QBrush(QColor("#64748b")))
+                op_item.setForeground(0, QBrush(QColor("#94a3b8" if is_light else "#64748b")))
+                op_item.setForeground(1, QBrush(QColor("#94a3b8" if is_light else "#64748b")))
             else:
-                op_item.setForeground(1, QBrush(QColor("#22c55e")))
+                op_item.setForeground(1, QBrush(QColor("#15803d" if is_light else "#22c55e")))
 
             if selected_id and op.op_id == selected_id:
                 op_item.setSelected(True)
