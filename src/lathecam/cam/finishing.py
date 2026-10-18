@@ -24,39 +24,46 @@ def offset_profile_pyclipper(
     offset_mm: float,
     scale: float = 1e6,
 ) -> list[Point2D]:
-    """Applies a 2D parallel curve offset using PyClipper with integer scaling.
+    """Applies a 2D outward parallel offset to the upper turning profile using PyClipper.
     
-    Points are in (Z, X) space.
+    Closes the profile down to the spindle centerline (X=0), offsets the polygon outward
+    by offset_mm using PyclipperOffset (JT_ROUND, ET_CLOSEDPOLYGON), and extracts the
+    single-pass upper outer contour from +Z to -Z.
     """
-    if len(points) < 2:
+    if len(points) < 2 or abs(offset_mm) < 1e-6:
         return list(points)
 
-    # Scale to integer coords for PyClipper
-    scaled_path = [[int(round(z * scale)), int(round(x * scale))] for z, x in points]
+    pts = list(points)
+    if pts[0][0] < pts[-1][0]:
+        pts.reverse()
+
+    z_max = pts[0][0]
+    z_min = pts[-1][0]
+
+    # Build closed polygon coordinates in (Z, X) space
+    closed_ring: list[Point2D] = [(z_max, 0.0)]
+    closed_ring.extend(pts)
+    closed_ring.append((z_min, 0.0))
+
+    scaled_path = [[int(round(z * scale)), int(round(x * scale))] for z, x in closed_ring]
 
     pco = pyclipper.PyclipperOffset()
-    pco.AddPath(scaled_path, pyclipper.JT_ROUND, pyclipper.ET_OPENROUND)
-    # Execute offset
+    pco.AddPath(scaled_path, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
     solution = pco.Execute(offset_mm * scale)
 
     if not solution:
-        # Fallback to shapely offset_curve if pyclipper open path offset returns empty
-        ls = shapely.geometry.LineString(points)
-        try:
-            offset_ls = shapely.offset_curve(ls, distance=offset_mm, quad_segs=16, join_style="round")
-            return list(offset_ls.coords)
-        except Exception:
-            return list(points)
+        return pts
 
-    # Find longest path in solution
-    best_path = max(solution, key=len)
-    offset_pts = [(pt[0] / scale, pt[1] / scale) for pt in best_path]
+    best_ring = max(solution, key=len)
+    offset_poly = shapely.geometry.Polygon([(pt[0] / scale, max(0.0, pt[1] / scale)) for pt in best_ring])
+    if not offset_poly.is_valid:
+        offset_poly = offset_poly.buffer(0)
 
-    # Maintain directional continuity from +Z to -Z
-    if len(offset_pts) >= 2 and offset_pts[0][0] < offset_pts[-1][0]:
-        offset_pts.reverse()
-
-    return offset_pts
+    from lathecam.cam.shadowing import extract_upper_profile
+    upper_pts = extract_upper_profile(offset_poly, sample_step_mm=0.25)
+    # Clip Z range to [z_min - offset_mm, z_max + offset_mm]
+    filtered = [(z, x) for z, x in upper_pts if (z_min - offset_mm - 1e-4) <= z <= (z_max + offset_mm + 1e-4)]
+    return filtered if len(filtered) >= 2 else upper_pts
 
 
 def generate_finishing_toolpath(

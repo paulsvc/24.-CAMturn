@@ -83,7 +83,7 @@ def simulate_2d_material_removal(
     cut_polys: list[shapely.geometry.Polygon] = []
 
     current_pos: Point2D | None = None
-    r_nose = max(0.1, tool.nose_radius_mm)
+    r_nose = min(0.15, max(0.05, tool.nose_radius_mm * 0.2))
 
     for cmd in commands:
         if cmd.mode == "COMMENT":

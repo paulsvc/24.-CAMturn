@@ -116,36 +116,25 @@ def compute_shadowed_polygon(
                 except Exception:
                     pass
 
-    # 2. Reverse / Overhang Shadow (Lead Angle Check)
-    # Lead angle relative to cut direction
+    # 2. Lead / Approach Angle Shadow on rising shoulders (when lead_angle_deg < 90 deg)
     lead_deg = tool.lead_angle_deg
-    if lead_deg > 90.0:
-        back_relief_deg = lead_deg - 90.0
-        back_relief_rad = math.radians(back_relief_deg)
-        lead_slope = math.tan(back_relief_rad)
-
-        for i in range(len(pts) - 1, 0, -1):
-            z0, x0 = pts[i]      # Rearward point
-            z1, x1 = pts[i - 1]  # Forward point
-
-            dz = z1 - z0  # Positive (towards +Z)
+    if 1.0 < lead_deg < 89.9:
+        max_rise_slope = math.tan(math.radians(lead_deg))  # Max dX / |-dZ| climb slope
+        for i in range(len(pts) - 1):
+            z0, x0 = pts[i]
+            z1, x1 = pts[i + 1]
+            dz = z1 - z0
             dx = x1 - x0
-
-            # If profile drops going from rear to front (re-entrant wall):
-            if dz > 1e-6 and dx < -1e-6:
-                ray_pts = [(z0, x0)]
-                curr_z = z0
-                while curr_z < max_z:
-                    curr_z = min(max_z, curr_z + 0.5)
-                    curr_x = x0 - lead_slope * (curr_z - z0)
-                    ray_pts.append((curr_z, max(0.0, curr_x)))
-
-                last_ray_z, last_ray_x = ray_pts[-1]
-                wedge_coords = list(ray_pts)
-                wedge_coords.append((last_ray_z, 0.0))
-                wedge_coords.append((z0, 0.0))
-                wedge_coords.append((z0, x0))
-
+            is_vertical_rise = abs(dz) <= 1e-6 and dx > 1e-6
+            is_steep_rise = dz < -1e-6 and dx > 0 and (dx / -dz) > max_rise_slope
+            if is_vertical_rise or is_steep_rise:
+                z_foot = min(max_z, z1 + (x1 / max_rise_slope))
+                wedge_coords = [
+                    (z1, x1),
+                    (z_foot, 0.0),
+                    (z1, 0.0),
+                    (z1, x1),
+                ]
                 try:
                     wedge_poly = shapely.geometry.Polygon(wedge_coords)
                     if wedge_poly.is_valid and not wedge_poly.is_empty:
