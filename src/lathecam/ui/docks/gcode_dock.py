@@ -11,6 +11,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QDockWidget,
     QHBoxLayout,
     QLabel,
@@ -22,7 +23,7 @@ from PySide6.QtWidgets import (
 
 
 class GCodeSyntaxHighlighter(QSyntaxHighlighter):
-    """Syntax highlighter for LinuxCNC turning G-code (.ngc)."""
+    """Syntax highlighter for LinuxCNC and Fanuc turning G-code."""
 
     def __init__(self, parent: QTextDocument) -> None:
         super().__init__(parent)
@@ -64,12 +65,13 @@ class GCodeSyntaxHighlighter(QSyntaxHighlighter):
 
 
 class GCodePreviewDock(QDockWidget):
-    """Integrated LinuxCNC G-code (.ngc) preview dock with syntax highlighting and export."""
+    """Integrated G-code (.ngc / .nc) preview dock with dialect selector, syntax highlighting, and export."""
 
     export_requested = Signal()
+    dialect_changed = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__("LinuxCNC G-Code Output (.ngc)", parent)
+        super().__init__("G-Code Post-Processor Output", parent)
         self.setObjectName("GCodePreviewDock")
         self.setAllowedAreas(
             Qt.DockWidgetArea.RightDockWidgetArea
@@ -83,7 +85,13 @@ class GCodePreviewDock(QDockWidget):
         layout.setSpacing(6)
 
         header_row = QHBoxLayout()
-        self.lbl_stats = QLabel("G18 ZX Plane • G7 Diameter Mode • G95 mm/rev")
+        self.combo_dialect = QComboBox()
+        self.combo_dialect.addItem("LinuxCNC (.ngc)", "linuxcnc")
+        self.combo_dialect.addItem("Fanuc 0i-TF (.nc)", "fanuc")
+        self.combo_dialect.currentIndexChanged.connect(self._on_dialect_selected)
+        header_row.addWidget(self.combo_dialect)
+
+        self.lbl_stats = QLabel("G18 ZX • G7 Diameter")
         self.lbl_stats.setStyleSheet("color: #94a3b8; font-size: 11px;")
         header_row.addWidget(self.lbl_stats)
         header_row.addStretch()
@@ -93,7 +101,7 @@ class GCodePreviewDock(QDockWidget):
         self.btn_copy.clicked.connect(self._copy_to_clipboard)
         header_row.addWidget(self.btn_copy)
 
-        self.btn_export = QPushButton("💾 Export .ngc")
+        self.btn_export = QPushButton("💾 Export")
         self.btn_export.clicked.connect(self.export_requested.emit)
         header_row.addWidget(self.btn_export)
 
@@ -112,7 +120,12 @@ class GCodePreviewDock(QDockWidget):
     def set_gcode(self, gcode_text: str) -> None:
         self.editor.setPlainText(gcode_text)
         line_count = len(gcode_text.splitlines())
-        self.lbl_stats.setText(f"G18 ZX • G7 Diameter Mode • {line_count} Lines")
+        self.lbl_stats.setText(f"G18 ZX • {line_count} Lines")
+
+    def _on_dialect_selected(self) -> None:
+        dialect = self.combo_dialect.currentData()
+        if dialect:
+            self.dialect_changed.emit(str(dialect))
 
     def _copy_to_clipboard(self) -> None:
         clipboard = QApplication.clipboard()

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from lathecam.cam.commands import MotionCmd
+from lathecam.post.fanuc import FanucPostProcessor
 from lathecam.post.linuxcnc import LinuxCNCPostProcessor
 
 
@@ -124,3 +125,25 @@ def test_linuxcnc_canned_cycles() -> None:
     assert "R1.000" in g83_line
     assert "Q3.000" in g83_line
     assert "F0.120" in g83_line
+
+
+def test_fanuc_post_processor() -> None:
+    post = FanucPostProcessor(is_diameter_mode=True)
+    cmds = [
+        MotionCmd.arc(mode="G2", x=15.0, z=-10.0, i=0.0, k=-5.0, f=0.15),
+        MotionCmd(
+            mode="G76",
+            x=10.0,
+            z=-20.0,
+            raw_params={"p": 1.5, "z": -20.0, "j": 0.25, "k": 0.92, "h": 2},
+        ),
+    ]
+    gcode = post.export(cmds, metadata={"tool_id": 2, "css_m_min": 200, "max_rpm": 2500})
+    assert "G50 S2500" in gcode
+    assert "T0202" in gcode
+    assert "G96 S200 M03" in gcode
+    assert "G02 X30.000 Z-10.000 I0.000 K-5.000 F0.150" in gcode
+    assert "G76 P020060" in gcode
+    assert "G28 U0.0 W0.0" in gcode
+
+

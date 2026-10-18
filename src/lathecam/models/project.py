@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+import json
 import math
+from pathlib import Path
 from typing import Any
 import shapely.geometry
 
@@ -16,6 +18,7 @@ from lathecam.cam.shadowing import compute_shadowed_polygon, profile_to_polygon
 from lathecam.cam.simulator import SimulationResult, simulate_2d_material_removal
 from lathecam.cam.tools import LatheTool
 from lathecam.models.stock import Stock
+from lathecam.post.fanuc import FanucPostProcessor
 from lathecam.post.linuxcnc import LinuxCNCPostProcessor
 
 
@@ -74,6 +77,7 @@ class LatheProject:
     tools: dict[int, LatheTool] = field(default_factory=dict)
     operations: list[OperationNode] = field(default_factory=list)
     is_diameter_mode: bool = True
+    post_dialect: str = "linuxcnc"  # 'linuxcnc' or 'fanuc'
 
     # Computed outputs
     part_polygon: shapely.geometry.Polygon | None = None
@@ -354,8 +358,112 @@ class LatheProject:
                 self.simulation_result = None
 
         # Post-process G-code
-        post = LinuxCNCPostProcessor(is_diameter_mode=self.is_diameter_mode)
+        if self.post_dialect.lower() == "fanuc":
+            post = FanucPostProcessor(is_diameter_mode=self.is_diameter_mode)
+        else:
+            post = LinuxCNCPostProcessor(is_diameter_mode=self.is_diameter_mode)
+
         self.gcode_text = post.export(
             all_post_cmds,
             metadata={"program_name": f"LatheCAM - {self.name}"},
         )
+
+    def save_to_file(self, filepath: str | Path) -> Path:
+        """Serializes the LatheProject state to a JSON .lcam project file."""
+        path = Path(filepath)
+        data: dict[str, Any] = {
+            "version": "1.0",
+            "name": self.name,
+            "is_diameter_mode": self.is_diameter_mode,
+            "post_dialect": self.post_dialect,
+            "stock": {
+                "od_mm": self.stock.od_mm,
+                "id_mm": self.stock.id_mm,
+                "z_start_mm": self.stock.z_start_mm,
+                "z_end_mm": self.stock.z_end_mm,
+            },
+            "contour_points": [[z, x] for z, x in self.contour.points],
+            "operations": [
+                {
+                    "op_id": op.op_id,
+                    "name": op.name,
+                    "op_type": op.op_type.name,
+                    "tool_id": op.tool_id,
+                    "enabled": op.enabled,
+                    "css_m_min": op.css_m_min,
+                    "max_rpm": op.max_rpm,
+                    "rpm": op.rpm,
+                    "feed_mm_rev": op.feed_mm_rev,
+                    "doc_mm": op.doc_mm,
+                    "finish_allowance_mm": op.finish_allowance_mm,
+                    "retract_mm": op.retract_mm,
+                    "comp_mode": op.comp_mode.name,
+                    "stepover_z_mm": op.stepover_z_mm,
+                    "pitch_mm": op.pitch_mm,
+                    "major_dia_mm": op.major_dia_mm,
+                    "thread_z_start_mm": op.thread_z_start_mm,
+                    "thread_z_end_mm": op.thread_z_end_mm,
+                    "target_z_mm": op.target_z_mm,
+                    "target_x_radius_mm": op.target_x_radius_mm,
+                    "peck_depth_mm": op.peck_depth_mm,
+                }
+                for op in self.operations
+            ],
+        }
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        return path
+
+    @classmethod
+    def load_from_file(cls, filepath: str | Path) -> LatheProject:
+        """Deserializes a LatheProject from a JSON .lcam project file."""
+        path = Path(filepath)
+        data = json.loads(path.read_text(encoding="utf-8"))
+
+        st_data = data["stock"]
+        stock = Stock(
+            od_mm=float(st_data["od_mm"]),
+            id_mm=float(st_data.get("id_mm", 0.0)),
+            z_start_mm=float(st_data.get("z_start_mm", 0.0)),
+            z_end_mm=float(st_data["z_end_mm"]),
+        )
+        pts: list[Point2D] = [(float(p[0]), float(p[1])) for p in data["contour_points"]]
+        contour = Contour(pts)
+
+        ops: list[OperationNode] = []
+        for od in data.get("operations", []):
+            ops.append(
+                OperationNode(
+                    op_id=str(od["op_id"]),
+                    name=str(od["name"]),
+                    op_type=OperationType[od["op_type"]],
+                    tool_id=int(od["tool_id"]),
+                    enabled=bool(od.get("enabled", True)),
+                    css_m_min=float(od.get("css_m_min", 180.0)),
+                    max_rpm=int(od.get("max_rpm", 2500)),
+                    rpm=int(od.get("rpm", 1000)),
+                    feed_mm_rev=float(od.get("feed_mm_rev", 0.20)),
+                    doc_mm=float(od.get("doc_mm", 1.8)),
+                    finish_allowance_mm=float(od.get("finish_allowance_mm", 0.4)),
+                    retract_mm=float(od.get("retract_mm", 0.8)),
+                    comp_mode=CompensationMode[od.get("comp_mode", "COMPUTER")],
+                    stepover_z_mm=float(od.get("stepover_z_mm", 1.0)),
+                    pitch_mm=float(od.get("pitch_mm", 1.5)),
+                    major_dia_mm=float(od.get("major_dia_mm", 16.0)),
+                    thread_z_start_mm=float(od.get("thread_z_start_mm", 0.0)),
+                    thread_z_end_mm=float(od.get("thread_z_end_mm", -11.0)),
+                    target_z_mm=float(od.get("target_z_mm", -42.0)),
+                    target_x_radius_mm=float(od.get("target_x_radius_mm", 0.0)),
+                    peck_depth_mm=float(od.get("peck_depth_mm", 2.0)),
+                )
+            )
+
+        proj = cls(
+            name=str(data.get("name", path.stem)),
+            stock=stock,
+            contour=contour,
+            operations=ops,
+            is_diameter_mode=bool(data.get("is_diameter_mode", True)),
+            post_dialect=str(data.get("post_dialect", "linuxcnc")),
+        )
+        proj.recalculate_all()
+        return proj

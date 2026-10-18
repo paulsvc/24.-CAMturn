@@ -50,6 +50,14 @@ class LatheCAMMainWindow(QMainWindow):
         act_open.triggered.connect(self.action_import_cad)
         toolbar.addAction(act_open)
 
+        act_open_proj = QAction("📁 Open .lcam", self)
+        act_open_proj.triggered.connect(self.action_open_project)
+        toolbar.addAction(act_open_proj)
+
+        act_save_proj = QAction("💾 Save .lcam", self)
+        act_save_proj.triggered.connect(self.action_save_project)
+        toolbar.addAction(act_save_proj)
+
         act_demo = QAction("⚙ Load Demo Shaft", self)
         act_demo.triggered.connect(self.action_load_demo)
         toolbar.addAction(act_demo)
@@ -88,7 +96,7 @@ class LatheCAMMainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        act_export = QAction("💾 Post LinuxCNC (.ngc)", self)
+        act_export = QAction("💾 Post G-Code", self)
         act_export.triggered.connect(self.action_export_gcode)
         toolbar.addAction(act_export)
 
@@ -128,6 +136,7 @@ class LatheCAMMainWindow(QMainWindow):
         self.tree_dock.operations_changed.connect(self._on_project_modified)
         self.props_dock.parameters_changed.connect(self._on_project_modified)
         self.gcode_dock.export_requested.connect(self.action_export_gcode)
+        self.gcode_dock.dialect_changed.connect(self._on_dialect_changed)
 
     def _setup_statusbar(self) -> None:
         status = QStatusBar(self)
@@ -142,6 +151,12 @@ class LatheCAMMainWindow(QMainWindow):
         self.props_dock.set_project(self.project)
         self.gcode_dock.set_gcode(self.project.gcode_text)
         self.viewport.render_project(self.project, active_op_id=self._active_op_id)
+
+    def _on_dialect_changed(self, dialect: str) -> None:
+        self.project.post_dialect = dialect
+        self.project.recalculate_all()
+        self.gcode_dock.set_gcode(self.project.gcode_text)
+        self.statusBar().showMessage(f"Switched Post-Processor Dialect to: {dialect.upper()}")
 
     def _on_tree_node_selected(self, node_kind: str, node_id: str) -> None:
         if node_kind == "operation":
@@ -177,6 +192,38 @@ class LatheCAMMainWindow(QMainWindow):
         self._active_op_id = None
         self._sync_all_views()
         self.statusBar().showMessage("Loaded Stepped Threaded Drive Shaft Demo Project")
+
+    def action_open_project(self) -> None:
+        filepath, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open LatheCAM Project (.lcam)",
+            "",
+            "LatheCAM Project (*.lcam);;All Files (*)",
+        )
+        if not filepath:
+            return
+        try:
+            self.project = LatheProject.load_from_file(filepath)
+            self._active_op_id = None
+            self._sync_all_views()
+            self.statusBar().showMessage(f"Loaded project from {filepath}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Project Load Error", f"Failed to load {filepath}:\n{exc}")
+
+    def action_save_project(self) -> None:
+        filepath, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save LatheCAM Project (.lcam)",
+            f"{self.project.name.lower().replace(' ', '_')}.lcam",
+            "LatheCAM Project (*.lcam);;All Files (*)",
+        )
+        if not filepath:
+            return
+        try:
+            self.project.save_to_file(filepath)
+            self.statusBar().showMessage(f"Saved project to {filepath}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Project Save Error", f"Failed to save {filepath}:\n{exc}")
 
     def action_import_cad(self) -> None:
         filepath, _ = QFileDialog.getOpenFileName(
@@ -238,16 +285,19 @@ class LatheCAMMainWindow(QMainWindow):
         self.tree_dock.select_operation_by_id(new_op.op_id)
 
     def action_export_gcode(self) -> None:
+        is_fanuc = self.project.post_dialect == "fanuc"
+        ext = ".nc" if is_fanuc else ".ngc"
+        filter_str = "Fanuc G-Code (*.nc);;All Files (*)" if is_fanuc else "LinuxCNC G-Code (*.ngc);;All Files (*)"
         filepath, _ = QFileDialog.getSaveFileName(
             self,
-            "Export LinuxCNC G-Code (.ngc)",
-            f"{self.project.name.lower().replace(' ', '_')}.ngc",
-            "LinuxCNC G-Code (*.ngc);;All Files (*)",
+            f"Export G-Code ({ext})",
+            f"{self.project.name.lower().replace(' ', '_')}{ext}",
+            filter_str,
         )
         if not filepath:
             return
         Path(filepath).write_text(self.project.gcode_text, encoding="utf-8")
-        self.statusBar().showMessage(f"Exported LinuxCNC G-Code to {filepath}")
+        self.statusBar().showMessage(f"Exported G-Code to {filepath}")
 
     def capture_screenshot(self, output_path: str | Path) -> Path:
         """Captures a composite high-DPI screenshot of the entire Qt MainWindow + VTK OpenGL framebuffer."""

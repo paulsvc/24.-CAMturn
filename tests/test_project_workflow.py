@@ -27,3 +27,22 @@ def test_demo_project_workflow_and_recalculation() -> None:
     proj.recalculate_all()
     assert "G42" in proj.gcode_text
     assert "G40" in proj.gcode_text
+
+
+def test_project_lcam_save_load(tmp_path) -> None:
+    proj = LatheProject.create_demo_project()
+    proj.post_dialect = "fanuc"
+    proj.recalculate_all()
+    assert "G50 S" in proj.gcode_text
+
+    lcam_file = tmp_path / "shaft_demo.lcam"
+    proj.save_to_file(lcam_file)
+    assert lcam_file.exists()
+
+    loaded = LatheProject.load_from_file(lcam_file)
+    assert loaded.name == proj.name
+    assert loaded.post_dialect == "fanuc"
+    assert len(loaded.operations) == len(proj.operations)
+    assert len(loaded.contour.points) == len(proj.contour.points)
+    assert "G50 S" in loaded.gcode_text
+
