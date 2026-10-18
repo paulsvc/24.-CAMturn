@@ -15,6 +15,8 @@ dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
     "ezdxf>=1.1.0",
+    "cadquery-ocp>=8.0",
+    "vtk>=9.2",
 ]
 
 [project.optional-dependencies]
