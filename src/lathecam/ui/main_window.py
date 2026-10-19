@@ -161,9 +161,12 @@ class LatheCAMMainWindow(QMainWindow):
         # Connect signals
         self.tree_dock.node_selected.connect(self._on_tree_node_selected)
         self.tree_dock.operations_changed.connect(self._on_project_modified)
+        self.tree_dock.assign_op_to_face_requested.connect(self.action_assign_operation_to_face)
         self.props_dock.parameters_changed.connect(self._on_project_modified)
         self.gcode_dock.export_requested.connect(self.action_export_gcode)
         self.gcode_dock.dialect_changed.connect(self._on_dialect_changed)
+        self.viewport.face_selected.connect(self._on_viewport_face_selected)
+        self.viewport.assign_op_to_face_requested.connect(self.action_assign_operation_to_face)
 
     def _setup_statusbar(self) -> None:
         status = QStatusBar(self)
@@ -243,17 +246,68 @@ class LatheCAMMainWindow(QMainWindow):
         self.gcode_dock.set_gcode(self.project.gcode_text)
         self.statusBar().showMessage(tr("status.dialect_switched", dialect=dialect.upper()))
 
+    def _on_viewport_face_selected(self, face_id: str) -> None:
+        if face_id:
+            self.tree_dock.select_face_by_id(face_id)
+            face = self.project.get_face_by_id(face_id)
+            if face is not None:
+                self.statusBar().showMessage(
+                    tr(
+                        "status.inspecting_face",
+                        label=face.format_label(get_language()),
+                        z_max=face.z_max,
+                        z_min=face.z_min,
+                    )
+                )
+
+    def action_assign_operation_to_face(self, face_id: str, op_type: object) -> None:
+        if not isinstance(op_type, OperationType):
+            return
+        face = self.project.get_face_by_id(face_id)
+        if face is None:
+            return
+        new_op = self.project.create_operation_for_face(face, op_type)
+        self._active_op_id = new_op.op_id
+        self.project.recalculate_all()
+        self.tree_dock.refresh()
+        self.props_dock._populate_face_combo()
+        self.props_dock.inspect_operation(new_op)
+        self.props_dock.update_simulation_labels()
+        self.gcode_dock.set_gcode(self.project.gcode_text)
+        self.tree_dock.select_operation_by_id(new_op.op_id)
+        self.viewport.select_face(face.face_id, emit_signal=False)
+        self.viewport.render_project(self.project, active_op_id=new_op.op_id)
+        self.statusBar().showMessage(
+            tr("status.inspecting", name=new_op.name, tool_id=new_op.tool_id, count=len(new_op.commands))
+        )
+
     def _on_tree_node_selected(self, node_kind: str, node_id: str) -> None:
         if node_kind == "operation":
             self._active_op_id = node_id
             op = next((o for o in self.project.operations if o.op_id == node_id), None)
             self.props_dock.inspect_operation(op)
             if op is not None:
+                face_id = op.assigned_face_id if op.geometry_scope == "face" else None
+                self.viewport.select_face(face_id, emit_signal=False)
                 self.statusBar().showMessage(
                     tr("status.inspecting", name=op.name, tool_id=op.tool_id, count=len(op.commands))
                 )
+        elif node_kind == "face":
+            self._active_op_id = None
+            self.viewport.select_face(node_id, emit_signal=False)
+            face = self.project.get_face_by_id(node_id)
+            if face is not None:
+                self.statusBar().showMessage(
+                    tr(
+                        "status.inspecting_face",
+                        label=face.format_label(get_language()),
+                        z_max=face.z_max,
+                        z_min=face.z_min,
+                    )
+                )
         else:
             self._active_op_id = None
+            self.viewport.select_face(None, emit_signal=False)
             self.props_dock.inspect_operation(None)
             self.statusBar().showMessage(tr("status.showing_all", name=self.project.name))
 

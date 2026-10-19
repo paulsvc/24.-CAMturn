@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QPushButton,
     QSpinBox,
@@ -17,12 +18,12 @@ from PySide6.QtWidgets import (
 from lathecam.cam.finishing import CompensationMode
 from lathecam.models.project import LatheProject, OperationNode, OperationType
 from lathecam.models.stock import Stock
-from lathecam.ui.i18n import tr
+from lathecam.ui.i18n import get_language, tr
 from lathecam.ui.theme import get_current_theme
 
 
 class PropertiesInspectorDock(QDockWidget):
-    """Dynamic Property Inspector for editing Stock dimensions and CAM Operation parameters."""
+    """Dynamic Property Inspector for editing Stock dimensions, Face Scope, and CAM Operation parameters."""
 
     parameters_changed = Signal()
 
@@ -38,7 +39,7 @@ class PropertiesInspectorDock(QDockWidget):
         container = QWidget()
         main_layout = QVBoxLayout(container)
         main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(10)
+        main_layout.setSpacing(8)
 
         # 1. Stock Setup GroupBox
         self.stock_group = QGroupBox(tr("props.stock_group"))
@@ -77,6 +78,33 @@ class PropertiesInspectorDock(QDockWidget):
 
         self.lbl_op_title = QLabel(tr("props.all_ops_overview"))
         self.lbl_op_title.setStyleSheet("color: #2563eb; font-weight: bold;")
+
+        # Geometry Scope & Face Selection Controls
+        self.combo_scope = QComboBox()
+        self.combo_scope.addItem(tr("props.scope_all"), "all")
+        self.combo_scope.addItem(tr("props.scope_face"), "face")
+        self.combo_scope.currentIndexChanged.connect(self._on_scope_edited)
+
+        self.combo_face = QComboBox()
+        self.combo_face.currentIndexChanged.connect(self._on_target_face_selected)
+
+        bounds_widget = QWidget()
+        bounds_layout = QHBoxLayout(bounds_widget)
+        bounds_layout.setContentsMargins(0, 0, 0, 0)
+        bounds_layout.setSpacing(4)
+        self.spin_z_start = QDoubleSpinBox()
+        self.spin_z_start.setRange(-500.0, 100.0)
+        self.spin_z_start.setDecimals(2)
+        self.spin_z_start.setPrefix("Z1: ")
+        self.spin_z_start.valueChanged.connect(self._on_op_edited)
+
+        self.spin_z_end = QDoubleSpinBox()
+        self.spin_z_end.setRange(-500.0, 100.0)
+        self.spin_z_end.setDecimals(2)
+        self.spin_z_end.setPrefix("Z2: ")
+        self.spin_z_end.valueChanged.connect(self._on_op_edited)
+        bounds_layout.addWidget(self.spin_z_start)
+        bounds_layout.addWidget(self.spin_z_end)
 
         self.combo_tool = QComboBox()
         self.combo_tool.currentIndexChanged.connect(self._on_op_edited)
@@ -135,6 +163,9 @@ class PropertiesInspectorDock(QDockWidget):
         self.spin_peck.valueChanged.connect(self._on_op_edited)
 
         self.lbl_op_row = QLabel(tr("props.lbl_op"))
+        self.lbl_scope_row = QLabel(tr("props.lbl_scope"))
+        self.lbl_face_row = QLabel(tr("props.lbl_target_face"))
+        self.lbl_bounds_row = QLabel(tr("props.lbl_z_bounds"))
         self.lbl_tool_row = QLabel(tr("props.lbl_tool"))
         self.lbl_doc_row = QLabel(tr("props.lbl_doc"))
         self.lbl_allowance_row = QLabel(tr("props.lbl_allowance"))
@@ -146,6 +177,9 @@ class PropertiesInspectorDock(QDockWidget):
         self.lbl_peck_row = QLabel(tr("props.lbl_peck"))
 
         op_form.addRow(self.lbl_op_row, self.lbl_op_title)
+        op_form.addRow(self.lbl_scope_row, self.combo_scope)
+        op_form.addRow(self.lbl_face_row, self.combo_face)
+        op_form.addRow(self.lbl_bounds_row, bounds_widget)
         op_form.addRow(self.lbl_tool_row, self.combo_tool)
         op_form.addRow(self.lbl_doc_row, self.spin_doc)
         op_form.addRow(self.lbl_allowance_row, self.spin_allowance)
@@ -177,6 +211,16 @@ class PropertiesInspectorDock(QDockWidget):
         main_layout.addStretch()
         self.setWidget(container)
 
+    def _populate_face_combo(self) -> None:
+        self.combo_face.blockSignals(True)
+        self.combo_face.clear()
+        self.combo_face.addItem(tr("props.face_custom"), "")
+        if self._project is not None:
+            lang = get_language()
+            for face in self._project.faces:
+                self.combo_face.addItem(f"{face.icon} {face.format_label(lang)}", face.face_id)
+        self.combo_face.blockSignals(False)
+
     def retranslate_ui(self) -> None:
         self.setWindowTitle(tr("props.dock_title"))
         self.stock_group.setTitle(tr("props.stock_group"))
@@ -186,6 +230,9 @@ class PropertiesInspectorDock(QDockWidget):
 
         self.op_group.setTitle(tr("props.op_group"))
         self.lbl_op_row.setText(tr("props.lbl_op"))
+        self.lbl_scope_row.setText(tr("props.lbl_scope"))
+        self.lbl_face_row.setText(tr("props.lbl_target_face"))
+        self.lbl_bounds_row.setText(tr("props.lbl_z_bounds"))
         self.lbl_tool_row.setText(tr("props.lbl_tool"))
         self.lbl_doc_row.setText(tr("props.lbl_doc"))
         self.lbl_allowance_row.setText(tr("props.lbl_allowance"))
@@ -197,6 +244,9 @@ class PropertiesInspectorDock(QDockWidget):
         self.lbl_peck_row.setText(tr("props.lbl_peck"))
 
         self._updating = True
+        self.combo_scope.setItemText(0, tr("props.scope_all"))
+        self.combo_scope.setItemText(1, tr("props.scope_face"))
+        self._populate_face_combo()
         self.combo_comp.setItemText(0, tr("props.comp_computer"))
         self.combo_comp.setItemText(1, tr("props.comp_controller"))
         self._updating = False
@@ -210,7 +260,9 @@ class PropertiesInspectorDock(QDockWidget):
         self.lbl_op_title.setStyleSheet(
             f"color: {'#1d4ed8' if is_light else '#60a5fa'}; font-weight: bold;"
         )
-        if self._active_op is None:
+        if self._active_op is not None:
+            self.inspect_operation(self._active_op)
+        else:
             self.lbl_op_title.setText(tr("props.all_ops_overview"))
         self.update_simulation_labels()
 
@@ -221,6 +273,8 @@ class PropertiesInspectorDock(QDockWidget):
         self.combo_tool.clear()
         for t_id, tool in sorted(project.tools.items()):
             self.combo_tool.addItem(f"T{t_id}: {tool.name} (R{tool.nose_radius_mm})", t_id)
+
+        self._populate_face_combo()
 
         self.spin_stock_od.setValue(project.stock.od_mm)
         self.spin_stock_z_start.setValue(project.stock.z_start_mm)
@@ -261,6 +315,24 @@ class PropertiesInspectorDock(QDockWidget):
         self.op_group.setEnabled(True)
         self.lbl_op_title.setText(f"{op.name}")
 
+        scope_idx = self.combo_scope.findData(op.geometry_scope)
+        if scope_idx >= 0:
+            self.combo_scope.setCurrentIndex(scope_idx)
+
+        face_idx = self.combo_face.findData(op.assigned_face_id or "")
+        if face_idx >= 0:
+            self.combo_face.setCurrentIndex(face_idx)
+
+        z1_default = op.bound_z_start_mm if op.bound_z_start_mm is not None else 0.0
+        z2_default = op.bound_z_end_mm if op.bound_z_end_mm is not None else -42.0
+        self.spin_z_start.setValue(z1_default)
+        self.spin_z_end.setValue(z2_default)
+
+        is_face_scope = op.geometry_scope == "face"
+        self.combo_face.setEnabled(is_face_scope)
+        self.spin_z_start.setEnabled(is_face_scope)
+        self.spin_z_end.setEnabled(is_face_scope)
+
         idx = self.combo_tool.findData(op.tool_id)
         if idx >= 0:
             self.combo_tool.setCurrentIndex(idx)
@@ -292,6 +364,39 @@ class PropertiesInspectorDock(QDockWidget):
 
         self._updating = False
 
+    def _on_scope_edited(self) -> None:
+        if self._updating or self._active_op is None:
+            return
+        scope = str(self.combo_scope.currentData() or "all")
+        self._active_op.geometry_scope = scope
+        is_face_scope = scope == "face"
+        self.combo_face.setEnabled(is_face_scope)
+        self.spin_z_start.setEnabled(is_face_scope)
+        self.spin_z_end.setEnabled(is_face_scope)
+        if is_face_scope and self._active_op.bound_z_start_mm is None and self._project:
+            if self._project.faces:
+                first_face = self._project.faces[1] if len(self._project.faces) > 1 else self._project.faces[0]
+                self._active_op.assigned_face_id = first_face.face_id
+                self._active_op.bound_z_start_mm = first_face.z_max
+                self._active_op.bound_z_end_mm = first_face.z_min
+                self.inspect_operation(self._active_op)
+        self.parameters_changed.emit()
+
+    def _on_target_face_selected(self) -> None:
+        if self._updating or self._active_op is None or self._project is None:
+            return
+        face_id = str(self.combo_face.currentData() or "")
+        self._active_op.assigned_face_id = face_id if face_id else None
+        face = self._project.get_face_by_id(face_id)
+        if face is not None:
+            self._updating = True
+            self.spin_z_start.setValue(face.z_max)
+            self.spin_z_end.setValue(face.z_min)
+            self._updating = False
+            self._active_op.bound_z_start_mm = face.z_max
+            self._active_op.bound_z_end_mm = face.z_min
+        self.parameters_changed.emit()
+
     def _on_stock_edited(self) -> None:
         if self._updating or self._project is None:
             return
@@ -312,6 +417,9 @@ class PropertiesInspectorDock(QDockWidget):
         tool_id = self.combo_tool.currentData()
         if tool_id is not None:
             op.tool_id = int(tool_id)
+        if op.geometry_scope == "face":
+            op.bound_z_start_mm = self.spin_z_start.value()
+            op.bound_z_end_mm = self.spin_z_end.value()
         op.doc_mm = self.spin_doc.value()
         op.finish_allowance_mm = self.spin_allowance.value()
         op.feed_mm_rev = self.spin_feed.value()

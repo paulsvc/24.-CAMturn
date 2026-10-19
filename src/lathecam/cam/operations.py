@@ -20,6 +20,7 @@ class FacingOp:
         feed_mm_rev: float = 0.20,
         clearance_x_mm: float = 1.5,
         retract_z_mm: float = 1.0,
+        target_z_mm: float = 0.0,
     ) -> None:
         self.stock = stock
         self.tool = tool
@@ -27,24 +28,25 @@ class FacingOp:
         self.feed_mm_rev = feed_mm_rev
         self.clearance_x_mm = clearance_x_mm
         self.retract_z_mm = retract_z_mm
+        self.target_z_mm = target_z_mm
 
     def generate(self) -> list[MotionCmd]:
         commands: list[MotionCmd] = []
-        commands.append(MotionCmd.comment(f"Facing Operation: Z={self.stock.z_start_mm:.2f} -> Z=0.00"))
+        commands.append(MotionCmd.comment(f"Facing Operation: Z={self.stock.z_start_mm:.2f} -> Z={self.target_z_mm:.2f}"))
 
         start_x = self.stock.od_radius + self.clearance_x_mm
         # Plunge past centerline by nose radius to ensure no nib is left on the part face
         end_x = -max(0.2, self.tool.nose_radius_mm)
 
         current_z = self.stock.z_start_mm
-        # If stock is already at 0.0 or negative, we do at least one cleanup facing pass at Z=0.0
+        # If stock is already at target_z_mm or negative, we do at least one cleanup facing pass
         z_passes: list[float] = []
-        if current_z > 0.0:
-            while current_z > 0.0:
-                current_z = max(0.0, current_z - self.stepover_z_mm)
+        if current_z > self.target_z_mm:
+            while current_z > self.target_z_mm:
+                current_z = max(self.target_z_mm, current_z - self.stepover_z_mm)
                 z_passes.append(current_z)
         else:
-            z_passes.append(0.0)
+            z_passes.append(self.target_z_mm)
 
         commands.append(MotionCmd.rapid(x=start_x, z=self.stock.z_start_mm + self.retract_z_mm))
 

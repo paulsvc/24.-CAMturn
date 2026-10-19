@@ -4,21 +4,30 @@
 
 ---
 
-## UI Screenshots & Showcase
+## UI Screenshots & Interactive Workflow Showcase
 
-### 1. 3D Workbench Overview (Dark Theme — English)
+### Animated End-to-End Workflow & Cut Simulation (GIF)
+![LatheCAM Interactive Face Selection, Toolpath Generation & 3D Material Removal Simulation](docs/images/lathecam_workflow_simulation.gif)
+
+### 1. Interactive 3D CAD Face Selection & Operation Assignment Bar
+![3D Interactive CAD Face Selection](docs/images/screenshot_6_face_selection_3d.png)
+
+### 2. Face-Bounded 2D ZX Roughing (`F7: Cylinder Ø25.0 × 10.0mm`)
+![Face-Bounded 2D Roughing](docs/images/screenshot_7_face_bounded_roughing_2d.png)
+
+### 3. 3D Workbench Overview (Dark Theme — English)
 ![3D Isometric Workbench Overview](docs/images/screenshot_1_3d_overview.png)
 
-### 2. White / Light CAD Theme & French Translation (Français)
+### 4. White / Light CAD Theme & French Translation (Français)
 ![White CAD Theme and French Translation](docs/images/screenshot_5_white_theme_french.png)
 
-### 3. 2D ZX Lathe Plane Roughing & Retracts
+### 5. 2D ZX Lathe Plane Roughing & Retracts
 ![2D ZX Roughing Passes](docs/images/screenshot_2_roughing_2d_zx.png)
 
-### 4. 2D ZX Lathe Plane Profile Finishing with TNRC & Fitted G2/G3 Arcs
+### 6. 2D ZX Lathe Plane Profile Finishing with TNRC & Fitted G2/G3 Arcs
 ![2D ZX Profile Finishing](docs/images/screenshot_3_finishing_tnrc_arcs.png)
 
-### 5. 3D Material Removal & Threading Simulation
+### 7. 3D Material Removal & Threading Simulation
 ![3D Cut Simulation and Threading](docs/images/screenshot_4_3d_cut_simulation.png)
 
 ---

@@ -9,6 +9,7 @@ from typing import Any
 import shapely.geometry
 
 from lathecam.cad.contour import Contour
+from lathecam.cad.face import FaceType, TurnedFace, decompose_contour_into_faces
 from lathecam.cad.geometry import Point2D
 from lathecam.cam.commands import MotionCmd
 from lathecam.cam.finishing import CompensationMode, generate_finishing_toolpath
@@ -39,6 +40,12 @@ class OperationNode:
     op_type: OperationType
     tool_id: int = 1
     enabled: bool = True
+
+    # Geometry Scope & Face Selection
+    geometry_scope: str = "all"  # "all" or "face"
+    assigned_face_id: str | None = None
+    bound_z_start_mm: float | None = None
+    bound_z_end_mm: float | None = None
 
     # Feeds & Speeds
     css_m_min: float = 180.0
@@ -80,6 +87,7 @@ class LatheProject:
     post_dialect: str = "linuxcnc"  # 'linuxcnc' or 'fanuc'
 
     # Computed outputs
+    faces: list[TurnedFace] = field(default_factory=list)
     part_polygon: shapely.geometry.Polygon | None = None
     shadowed_polygon: shapely.geometry.Polygon | None = None
     simulation_result: SimulationResult | None = None
@@ -88,6 +96,12 @@ class LatheProject:
     def __post_init__(self) -> None:
         if not self.tools:
             self.tools = self.default_tool_turret()
+        self.faces = decompose_contour_into_faces(self.contour)
+
+    def get_face_by_id(self, face_id: str | None) -> TurnedFace | None:
+        if not face_id:
+            return None
+        return next((f for f in self.faces if f.face_id == face_id), None)
 
     @staticmethod
     def default_tool_turret() -> dict[int, LatheTool]:
@@ -209,8 +223,46 @@ class LatheProject:
         proj.recalculate_all()
         return proj
 
+    def create_operation_for_face(self, face: TurnedFace, op_type: OperationType) -> OperationNode:
+        """Instantiates and appends a new OperationNode automatically bound to the given TurnedFace."""
+        import uuid
+
+        idx = len(self.operations) + 1
+        default_tool = {
+            OperationType.FACING: 1,
+            OperationType.ROUGHING: 1,
+            OperationType.FINISHING: 2,
+            OperationType.PARTING: 4,
+            OperationType.THREADING: 5,
+            OperationType.DRILLING: 6,
+        }.get(op_type, 1)
+
+        op = OperationNode(
+            op_id=f"op_{uuid.uuid4().hex[:6]}",
+            name=f"{idx}. {op_type.value} [F{face.index} Ø{face.dia_max_mm:.1f}]",
+            op_type=op_type,
+            tool_id=default_tool,
+            geometry_scope="face",
+            assigned_face_id=face.face_id,
+            bound_z_start_mm=round(face.z_max, 3),
+            bound_z_end_mm=round(face.z_min, 3),
+        )
+
+        if op_type == OperationType.THREADING:
+            op.major_dia_mm = round(face.dia_max_mm, 2)
+            op.thread_z_start_mm = round(face.z_max, 2)
+            op.thread_z_end_mm = round(face.z_min, 2)
+        elif op_type == OperationType.PARTING:
+            op.target_z_mm = round(face.z_min, 2)
+            op.target_x_radius_mm = round(face.x_min if face.face_type == FaceType.GROOVE else 0.0, 2)
+
+        self.operations.append(op)
+        return op
+
     def recalculate_all(self) -> None:
         """Recalculates all CAM operation toolpaths, 2D material removal simulation, and LinuxCNC G-code."""
+        self.faces = decompose_contour_into_faces(self.contour)
+
         try:
             self.part_polygon = profile_to_polygon(
                 self.contour.points,
@@ -269,11 +321,17 @@ class LatheProject:
                         )
                     )
 
+                use_face_bounds = op.geometry_scope == "face"
+                z_s = op.bound_z_start_mm if use_face_bounds else None
+                z_e = op.bound_z_end_mm if use_face_bounds else None
+                target_face = self.get_face_by_id(op.assigned_face_id) if use_face_bounds else None
+
                 match op.op_type:
                     case OperationType.FACING:
                         f_op = FacingOp(
                             stock=self.stock,
                             tool=tool,
+                            target_z_mm=z_e if z_e is not None else 0.0,
                             stepover_z_mm=op.stepover_z_mm,
                             feed_mm_rev=op.feed_mm_rev,
                         )
@@ -290,6 +348,8 @@ class LatheProject:
                             feed_mm_rev=op.feed_mm_rev,
                             finish_allowance_mm=op.finish_allowance_mm,
                             retract_mm=op.retract_mm,
+                            z_start=z_s,
+                            z_end=z_e,
                         )
                         op.commands = header_cmds + op_cmds
                         op.preview_commands = list(op.commands)
@@ -302,6 +362,9 @@ class LatheProject:
                             comp_mode=op.comp_mode,
                             feed_mm_rev=op.feed_mm_rev,
                             retract_mm=op.retract_mm,
+                            z_start=z_s,
+                            z_end=z_e,
+                            target_face_pts=target_face.points if target_face is not None else None,
                         )
                         op.commands = header_cmds + op_cmds
                         op.preview_commands = list(op.commands)
@@ -372,7 +435,7 @@ class LatheProject:
         """Serializes the LatheProject state to a JSON .lcam project file."""
         path = Path(filepath)
         data: dict[str, Any] = {
-            "version": "1.0",
+            "version": "1.1",
             "name": self.name,
             "is_diameter_mode": self.is_diameter_mode,
             "post_dialect": self.post_dialect,
@@ -390,6 +453,10 @@ class LatheProject:
                     "op_type": op.op_type.name,
                     "tool_id": op.tool_id,
                     "enabled": op.enabled,
+                    "geometry_scope": op.geometry_scope,
+                    "assigned_face_id": op.assigned_face_id,
+                    "bound_z_start_mm": op.bound_z_start_mm,
+                    "bound_z_end_mm": op.bound_z_end_mm,
                     "css_m_min": op.css_m_min,
                     "max_rpm": op.max_rpm,
                     "rpm": op.rpm,
@@ -438,6 +505,10 @@ class LatheProject:
                     op_type=OperationType[od["op_type"]],
                     tool_id=int(od["tool_id"]),
                     enabled=bool(od.get("enabled", True)),
+                    geometry_scope=str(od.get("geometry_scope", "all")),
+                    assigned_face_id=od.get("assigned_face_id"),
+                    bound_z_start_mm=float(od["bound_z_start_mm"]) if od.get("bound_z_start_mm") is not None else None,
+                    bound_z_end_mm=float(od["bound_z_end_mm"]) if od.get("bound_z_end_mm") is not None else None,
                     css_m_min=float(od.get("css_m_min", 180.0)),
                     max_rpm=int(od.get("max_rpm", 2500)),
                     rpm=int(od.get("rpm", 1000)),

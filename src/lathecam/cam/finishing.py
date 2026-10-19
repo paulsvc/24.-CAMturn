@@ -76,16 +76,33 @@ def generate_finishing_toolpath(
     retract_mm: float = 1.0,
     chordal_tolerance_mm: float = 0.005,
     sample_step_mm: float = 0.25,
+    z_start: float | None = None,
+    z_end: float | None = None,
+    target_face_pts: Sequence[Point2D] | None = None,
 ) -> list[MotionCmd]:
-    """Generates an OD profile finishing toolpath with G2/G3 arc reconstruction and TNRC."""
-    # 1. Compute shadowed reachable profile
-    shadowed_pts = compute_shadowed_profile(
-        profile_pts,
-        tool,
-        sample_step_mm=sample_step_mm,
-        z_min_bound=stock.z_end_mm,
-        z_max_bound=stock.z_start_mm,
-    )
+    """Generates an OD profile finishing toolpath with G2/G3 arc reconstruction and TNRC.
+    
+    Supports full-profile finishing as well as single-face or Z-bounded finishing.
+    """
+    if target_face_pts is not None and len(target_face_pts) >= 2:
+        shadowed_pts = list(target_face_pts)
+    else:
+        # 1. Compute shadowed reachable profile
+        shadowed_pts = compute_shadowed_profile(
+            profile_pts,
+            tool,
+            sample_step_mm=sample_step_mm,
+            z_min_bound=stock.z_end_mm,
+            z_max_bound=stock.z_start_mm,
+        )
+        if z_start is not None or z_end is not None:
+            z1 = z_start if z_start is not None else stock.z_start_mm
+            z2 = z_end if z_end is not None else stock.z_end_mm
+            z_high = max(z1, z2) + 1e-4
+            z_low = min(z1, z2) - 1e-4
+            clipped = [pt for pt in shadowed_pts if z_low <= pt[0] <= z_high]
+            if len(clipped) >= 2:
+                shadowed_pts = clipped
 
     if len(shadowed_pts) < 2:
         return [MotionCmd.comment("Error: Invalid profile geometry for finishing")]

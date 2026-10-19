@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QBrush
+from PySide6.QtCore import Qt, Signal, QPoint
+from PySide6.QtGui import QAction, QColor, QBrush
 from PySide6.QtWidgets import (
     QDockWidget,
     QHBoxLayout,
+    QMenu,
     QPushButton,
     QTreeWidget,
     QTreeWidgetItem,
@@ -12,16 +13,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from lathecam.models.project import LatheProject
-from lathecam.ui.i18n import tr
+from lathecam.models.project import LatheProject, OperationType
+from lathecam.ui.i18n import get_language, tr
 from lathecam.ui.theme import get_current_theme
 
 
 class FeatureTreeDock(QDockWidget):
-    """SolidWorks-style FeatureManager tree dock for Stock, Part Profile, and Turning Operations."""
+    """SolidWorks-style FeatureManager tree dock for Stock, CAD Faces, and Turning Operations."""
 
-    node_selected = Signal(str, str)  # (node_kind: 'stock'|'profile'|'operation', node_id: str)
+    node_selected = Signal(str, str)  # (node_kind: 'stock'|'profile'|'face'|'operation', node_id: str)
     operations_changed = Signal()
+    assign_op_to_face_requested = Signal(str, object)  # (face_id, OperationType)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(tr("tree.dock_title"), parent)
@@ -38,8 +40,10 @@ class FeatureTreeDock(QDockWidget):
 
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels([tr("tree.col_feature"), tr("tree.col_status")])
-        self.tree.setColumnWidth(0, 210)
+        self.tree.setColumnWidth(0, 215)
         self.tree.setAlternatingRowColors(True)
+        self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._on_tree_context_menu)
         self.tree.itemSelectionChanged.connect(self._on_selection_changed)
         self.tree.itemChanged.connect(self._on_item_changed)
         layout.addWidget(self.tree)
@@ -82,6 +86,7 @@ class FeatureTreeDock(QDockWidget):
 
         selected_id = self.current_selected_op_id()
         is_light = get_current_theme() == "light"
+        lang = get_language()
 
         self._updating = True
         self.tree.clear()
@@ -99,14 +104,26 @@ class FeatureTreeDock(QDockWidget):
         stock_item.setData(0, Qt.ItemDataRole.UserRole, ("stock", "stock"))
         stock_item.setForeground(1, QBrush(QColor("#0284c7" if is_light else "#38bdf8")))
 
-        # 2. CAD Profile Node
-        c = self._project.contour
-        prof_item = QTreeWidgetItem(
+        # 2. CAD Machinable Faces Folder
+        faces_root = QTreeWidgetItem(
             root,
-            [tr("tree.profile_node"), f"{len(c.points)} pts (Ø{c.x_max*2:.1f}mm)"],
+            [
+                tr("tree.faces_folder"),
+                tr("tree.faces_count", count=len(self._project.faces)),
+            ],
         )
-        prof_item.setData(0, Qt.ItemDataRole.UserRole, ("profile", "profile"))
-        prof_item.setForeground(1, QBrush(QColor("#7c3aed" if is_light else "#a78bfa")))
+        faces_root.setData(0, Qt.ItemDataRole.UserRole, ("faces_folder", "faces_folder"))
+        faces_root.setForeground(1, QBrush(QColor("#d97706" if is_light else "#f59e0b")))
+        faces_root.setExpanded(True)
+
+        for face in self._project.faces:
+            z_range_str = f"Z: {face.z_max:.1f} → {face.z_min:.1f}"
+            f_item = QTreeWidgetItem(
+                faces_root,
+                [f"{face.icon} {face.format_label(lang)}", z_range_str],
+            )
+            f_item.setData(0, Qt.ItemDataRole.UserRole, ("face", face.face_id))
+            f_item.setForeground(1, QBrush(QColor("#b45309" if is_light else "#fbbf24")))
 
         # 3. Operations Folder
         dialect_label = "Fanuc 0i-TF" if self._project.post_dialect == "fanuc" else "LinuxCNC"
@@ -122,6 +139,10 @@ class FeatureTreeDock(QDockWidget):
 
         for op in self._project.operations:
             status_str = tr("tree.cmds_count", tool_id=op.tool_id, count=len(op.commands))
+            if op.geometry_scope == "face" and op.assigned_face_id:
+                face_obj = self._project.get_face_by_id(op.assigned_face_id)
+                if face_obj:
+                    status_str = f"[F{face_obj.index}] {status_str}"
             if op.warning_message:
                 status_str = f"⚠ {op.warning_message[:22]}"
 
@@ -159,7 +180,7 @@ class FeatureTreeDock(QDockWidget):
         return None
 
     def select_operation_by_id(self, op_id: str | None) -> None:
-        """Programmatically selects an operation node (or 'all' if None)."""
+        """Programmatically selects an operation node (or clears if None)."""
         if op_id is None:
             self.tree.clearSelection()
             return
@@ -170,6 +191,54 @@ class FeatureTreeDock(QDockWidget):
                 self.tree.setCurrentItem(item)
                 item.setSelected(True)
                 break
+
+    def select_face_by_id(self, face_id: str | None) -> None:
+        """Programmatically selects a CAD Face node in the tree."""
+        if not face_id:
+            return
+        self._updating = True
+        iterator = self.tree.findItems("", Qt.MatchFlag.MatchContains | Qt.MatchFlag.MatchRecursive)
+        for item in iterator:
+            data = item.data(0, Qt.ItemDataRole.UserRole)
+            if isinstance(data, tuple) and data == ("face", face_id):
+                self.tree.setCurrentItem(item)
+                item.setSelected(True)
+                break
+        self._updating = False
+
+    def _on_tree_context_menu(self, pos: QPoint) -> None:
+        if self._project is None:
+            return
+        item = self.tree.itemAt(pos)
+        if item is None:
+            return
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not isinstance(data, tuple) or data[0] != "face":
+            return
+        face = self._project.get_face_by_id(data[1])
+        if face is None:
+            return
+
+        menu = QMenu(self)
+        hdr = QAction(tr("face.menu_header", label=face.format_label(get_language())), self)
+        hdr.setEnabled(False)
+        menu.addAction(hdr)
+        menu.addSeparator()
+
+        act_rough = menu.addAction(tr("face.act_rough"))
+        act_finish = menu.addAction(tr("face.act_finish"))
+        act_thread = menu.addAction(tr("face.act_thread"))
+        act_part = menu.addAction(tr("face.act_part"))
+
+        chosen = menu.exec(self.tree.viewport().mapToGlobal(pos))
+        if chosen == act_rough:
+            self.assign_op_to_face_requested.emit(face.face_id, OperationType.ROUGHING)
+        elif chosen == act_finish:
+            self.assign_op_to_face_requested.emit(face.face_id, OperationType.FINISHING)
+        elif chosen == act_thread:
+            self.assign_op_to_face_requested.emit(face.face_id, OperationType.THREADING)
+        elif chosen == act_part:
+            self.assign_op_to_face_requested.emit(face.face_id, OperationType.PARTING)
 
     def _on_selection_changed(self) -> None:
         if self._updating:

@@ -22,10 +22,13 @@ def generate_roughing_toolpath(
     clearance_z_mm: float = 1.0,
     clearance_x_mm: float = 1.0,
     is_id: bool = False,
+    z_start: float | None = None,
+    z_end: float | None = None,
 ) -> list[MotionCmd]:
     """Generates an OD or ID roughing toolpath with horizontal slicing and 45-degree retracts.
     
     All coordinates and offsets are in Radius Mode (X = radius in mm).
+    Optionally restricts cutting to [min(z_start, z_end), max(z_start, z_end)].
     """
     if doc_mm is None or doc_mm <= 0:
         doc_mm = tool.max_doc_mm
@@ -47,6 +50,18 @@ def generate_roughing_toolpath(
     # 3. Compute machinable region: Stock_Box - Buffered_Part
     stock_box = stock.to_shapely_box()
     machinable_region = stock_box.difference(buffered_part)
+
+    # 3b. Clip to axial Z bounds if specified (Face / Custom Range selection)
+    if z_start is not None or z_end is not None:
+        z1 = z_start if z_start is not None else stock.z_start_mm
+        z2 = z_end if z_end is not None else stock.z_end_mm
+        z_high = max(z1, z2)
+        z_low = min(z1, z2)
+        if z_high - z_low < 0.2:
+            z_high += 0.5
+            z_low -= 0.5
+        clip_box = shapely.geometry.box(z_low, 0.0, z_high, stock.od_radius + 10.0)
+        machinable_region = machinable_region.intersection(clip_box)
 
     if machinable_region.is_empty:
         return [MotionCmd.comment("Machinable region is empty; stock already at or within part profile")]
