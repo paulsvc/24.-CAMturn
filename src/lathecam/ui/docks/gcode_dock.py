@@ -98,12 +98,19 @@ class GCodePreviewDock(QDockWidget):
         self.combo_dialect = QComboBox()
         self.combo_dialect.addItem("LinuxCNC (.ngc)", "linuxcnc")
         self.combo_dialect.addItem("Fanuc 0i-TF (.nc)", "fanuc")
+        self.combo_dialect.addItem("NCViewer / ISO Sim (.nc)", "ncviewer")
         self.combo_dialect.currentIndexChanged.connect(self._on_dialect_selected)
         header_row.addWidget(self.combo_dialect)
 
         self.lbl_stats = QLabel(tr("gcode.stats", count=0))
         self.lbl_stats.setStyleSheet("color: #64748b; font-size: 11px;")
         header_row.addWidget(self.lbl_stats)
+
+        self.lbl_verify = QLabel("✓ Verified")
+        self.lbl_verify.setStyleSheet(
+            "color: #16a34a; font-weight: bold; font-size: 11px; padding: 2px 6px;"
+        )
+        header_row.addWidget(self.lbl_verify)
         header_row.addStretch()
 
         self.btn_copy = QPushButton(tr("gcode.btn_copy"))
@@ -135,10 +142,27 @@ class GCodePreviewDock(QDockWidget):
         self.highlighter.rebuild_rules()
         self.highlighter.rehighlight()
 
-    def set_gcode(self, gcode_text: str) -> None:
+    def set_gcode(self, gcode_text: str, verification_report: object | None = None) -> None:
         self.editor.setPlainText(gcode_text)
         self._line_count = len(gcode_text.splitlines())
         self.lbl_stats.setText(tr("gcode.stats", count=self._line_count))
+        if verification_report is not None and hasattr(verification_report, "is_valid"):
+            is_valid = getattr(verification_report, "is_valid", True)
+            err_cnt = getattr(verification_report, "error_count", 0)
+            max_arc_err = getattr(verification_report, "max_arc_radius_error_mm", 0.0)
+            summary_fn = getattr(verification_report, "summary", None)
+            if callable(summary_fn):
+                self.lbl_verify.setToolTip(str(summary_fn()))
+            if is_valid:
+                self.lbl_verify.setText(f"✓ Verified (ΔR≤{max_arc_err:.4f}mm)")
+                self.lbl_verify.setStyleSheet(
+                    "color: #16a34a; font-weight: bold; font-size: 11px; padding: 2px 6px;"
+                )
+            else:
+                self.lbl_verify.setText(f"⚠ {err_cnt} G-Code Errors")
+                self.lbl_verify.setStyleSheet(
+                    "color: #ef4444; font-weight: bold; font-size: 11px; padding: 2px 6px;"
+                )
 
     def _on_dialect_selected(self) -> None:
         dialect = self.combo_dialect.currentData()

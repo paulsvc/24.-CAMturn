@@ -101,12 +101,14 @@ python -m pytest -v
 
 ---
 
-## Sample CNC G-Code Outputs
+## Sample CNC G-Code Outputs & Automated Verification
 
-Sample G-code programs ready to be loaded into external CNC machine simulators (NC Viewer, CAMotics, LinuxCNC native plot, Fanuc CNC Guide) are published in the [`gcode/`](gcode/) folder:
+All generated G-code programs are automatically checked by the built-in **G-Code Geometric Verifier & Backplotter (`src/lathecam/post/verifier.py`)** (verifying sub-micron arc center consistency $|R_{\text{start}} - R_{\text{end}}| \le 0.0004\text{ mm}$, orthogonal rapid clearances, and zero part gouging) and published in the [`gcode/`](gcode/) folder:
 
+- **[`gcode/stepped_shaft_ncviewer.nc`](gcode/stepped_shaft_ncviewer.nc)** *(Recommended for [ncviewer.com](https://ncviewer.com) & CAMotics)*: 1:1 Radial coordinates (`r_start == r_end`), dedicated `G18` XZ plane arc chirality, and unrolled multi-pass threading & peck drilling.
 - **[`gcode/stepped_shaft_linuxcnc.ngc`](gcode/stepped_shaft_linuxcnc.ngc)**: LinuxCNC / Machinekit lathe dialect with `G7` diameter mode, `T<id> M6 G43`, `G96 D<rpm> S<css>`, `G2`/`G3` TNRC finishing, `G76` threading, and `G83` drilling.
 - **[`gcode/stepped_shaft_fanuc.nc`](gcode/stepped_shaft_fanuc.nc)**: Fanuc 0i-TF / ISO dialect with `G50 S<rpm>`, `T0101`, `G96 S<css> M03`, 2-block `G76` threading cycle, and `G28` reference return.
 - **[`gcode/stepped_shaft_face_bounded.ngc`](gcode/stepped_shaft_face_bounded.ngc)**: Example demonstrating interactive CAD face-bounded selective roughing.
+
 
 

@@ -94,27 +94,27 @@ def compute_shadowed_polygon(
         is_steep_drop = dz < -1e-6 and dx < 0 and (-dx / -dz) > clearance_slope
 
         if is_vertical_drop or is_steep_drop:
-            # We project a ray from (z0, x0) at slope: x(z) = x0 - clearance_slope * (z0 - z)
-            ray_pts = [(z0, x0)]
-            curr_z = z0
-            while curr_z > min_z:
-                curr_z = max(min_z, curr_z - 0.25)
-                curr_x = x0 - clearance_slope * (z0 - curr_z)
-                ray_pts.append((curr_z, max(0.0, curr_x)))
+            # Project a straight clearance ray from (z0, x0) at slope: x(z) = x0 - clearance_slope * (z0 - z)
+            if clearance_slope > 1e-9:
+                z_zero = z0 - (x0 / clearance_slope)
+                z_end_ray = max(min_z, z_zero)
+            else:
+                z_end_ray = min_z
+            x_end_ray = max(0.0, x0 - clearance_slope * (z0 - z_end_ray))
 
-                # Complete shadow wedge polygon down to X=0
-                last_ray_z, last_ray_x = ray_pts[-1]
-                wedge_coords = list(ray_pts)
-                wedge_coords.append((last_ray_z, 0.0))
-                wedge_coords.append((z0, 0.0))
-                wedge_coords.append((z0, x0))
-
-                try:
-                    wedge_poly = shapely.geometry.Polygon(wedge_coords)
-                    if wedge_poly.is_valid and not wedge_poly.is_empty:
-                        shadow_wedges.append(wedge_poly)
-                except Exception:
-                    pass
+            wedge_coords = [
+                (z0, x0),
+                (z_end_ray, x_end_ray),
+                (z_end_ray, 0.0),
+                (z0, 0.0),
+                (z0, x0),
+            ]
+            try:
+                wedge_poly = shapely.geometry.Polygon(wedge_coords)
+                if wedge_poly.is_valid and not wedge_poly.is_empty:
+                    shadow_wedges.append(wedge_poly)
+            except Exception:
+                pass
 
     # 2. Lead / Approach Angle Shadow on rising shoulders (when lead_angle_deg < 90 deg)
     lead_deg = tool.lead_angle_deg
@@ -154,37 +154,43 @@ def compute_shadowed_polygon(
 
 def extract_upper_profile(
     polygon: shapely.geometry.Polygon | shapely.geometry.MultiPolygon,
-    sample_step_mm: float = 0.5,
+    sample_step_mm: float | None = None,
 ) -> list[Point2D]:
-    """Extracts a smooth sequence of (Z, X_radius) points along the top silhouette of a polygon."""
-    min_z, min_x, max_z, max_x = polygon.bounds
+    """Extracts the exact sequence of (Z, X_radius) vertices along the top silhouette of a polygon."""
+    if polygon.is_empty:
+        return []
 
-    z_vals = np.arange(max_z, min_z - 1e-6, -sample_step_mm)
-    if len(z_vals) == 0 or z_vals[-1] > min_z + 1e-6:
-        z_vals = np.append(z_vals, min_z)
+    if isinstance(polygon, shapely.geometry.MultiPolygon):
+        poly = max(polygon.geoms, key=lambda g: g.area)
+    else:
+        poly = polygon
 
+    oriented = shapely.geometry.polygon.orient(poly, sign=1.0)
+    ring = list(oriented.exterior.coords)[:-1]
+    if len(ring) < 3:
+        return []
+
+    min_z, _, max_z, _ = oriented.bounds
+
+    # Find the bottom-right corner near (max_z, 0.0) and bottom-left corner near (min_z, 0.0)
+    idx_start = min(
+        range(len(ring)),
+        key=lambda k: math.hypot(ring[k][0] - max_z, ring[k][1] - 0.0),
+    )
+    rotated = ring[idx_start:] + ring[:idx_start]
+    idx_end = min(
+        range(len(rotated)),
+        key=lambda k: math.hypot(rotated[k][0] - min_z, rotated[k][1] - 0.0),
+    )
+
+    upper_chain = rotated[: idx_end + 1]
     profile: list[Point2D] = []
-    for z in z_vals:
-        # Cast a vertical ray at Z = z from X=0 to max_x + 1
-        ray = shapely.geometry.LineString([(z, 0.0), (z, max_x + 5.0)])
-        inter = ray.intersection(polygon)
-        if inter.is_empty:
+    for z, x in upper_chain:
+        if x <= 1e-5:
             continue
-        if isinstance(inter, shapely.geometry.LineString):
-            top_x = max(p[1] for p in inter.coords)
-            profile.append((float(z), float(top_x)))
-        elif isinstance(inter, shapely.geometry.MultiLineString):
-            top_x = max(max(p[1] for p in ls.coords) for ls in inter.geoms)
-            profile.append((float(z), float(top_x)))
-        elif isinstance(inter, shapely.geometry.Point):
-            profile.append((float(z), float(inter.y)))
-        elif isinstance(inter, shapely.geometry.GeometryCollection):
-            xs = [g.y for g in inter.geoms if isinstance(g, shapely.geometry.Point)]
-            for g in inter.geoms:
-                if isinstance(g, shapely.geometry.LineString):
-                    xs.extend([p[1] for p in g.coords])
-            if xs:
-                profile.append((float(z), float(max(xs))))
+        pt = (float(z), float(x))
+        if not profile or math.hypot(pt[0] - profile[-1][0], pt[1] - profile[-1][1]) > 1e-6:
+            profile.append(pt)
 
     return profile
 
@@ -196,7 +202,7 @@ def compute_shadowed_profile(
     z_min_bound: float | None = None,
     z_max_bound: float | None = None,
 ) -> list[Point2D]:
-    """High-level function: Returns the shadowed profile (Z, X) as a discrete point sequence."""
+    """High-level function: Returns the shadowed profile (Z, X) as an exact vertex sequence."""
     shadowed_poly = compute_shadowed_polygon(
         profile_pts,
         tool,
@@ -204,3 +210,4 @@ def compute_shadowed_profile(
         z_max_bound=z_max_bound,
     )
     return extract_upper_profile(shadowed_poly, sample_step_mm=sample_step_mm)
+

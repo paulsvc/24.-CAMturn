@@ -59,6 +59,9 @@ class LinuxCNCPostProcessor(BasePostProcessor):
 
         # 2. Iterate through motion commands
         x_scale = 2.0 if self.is_diameter_mode else 1.0
+        curr_x_rad: float | None = None
+        curr_z: float | None = None
+        last_mode: str | None = None
 
         for cmd in commands:
             if cmd.mode == "COMMENT":
@@ -69,6 +72,7 @@ class LinuxCNCPostProcessor(BasePostProcessor):
             if cmd.mode == "TOOL_CHANGE":
                 t_id = cmd.raw_params.get("tool_id", 1) if cmd.raw_params else 1
                 lines.append(f"T{int(t_id)} M6 G43")
+                last_mode = None
                 continue
 
             if cmd.mode == "SPINDLE_CSS":
@@ -85,6 +89,20 @@ class LinuxCNCPostProcessor(BasePostProcessor):
                 continue
 
             if cmd.mode in ("G0", "G1"):
+                next_x_rad = round(cmd.x * x_scale, 3) / x_scale if cmd.x is not None else curr_x_rad
+                next_z = round(cmd.z, 3) if cmd.z is not None else curr_z
+                if (
+                    cmd.mode == "G0"
+                    and last_mode == "G0"
+                    and curr_x_rad is not None
+                    and curr_z is not None
+                    and next_x_rad is not None
+                    and next_z is not None
+                    and abs(next_x_rad - curr_x_rad) < 1e-6
+                    and abs(next_z - curr_z) < 1e-6
+                ):
+                    continue
+
                 parts = [cmd.mode]
                 if cmd.x is not None:
                     parts.append(f"X{self._fmt(cmd.x * x_scale)}")
@@ -93,9 +111,32 @@ class LinuxCNCPostProcessor(BasePostProcessor):
                 if cmd.f is not None and cmd.mode == "G1":
                     parts.append(f"F{self._fmt(cmd.f)}")
                 lines.append(" ".join(parts))
+                curr_x_rad = next_x_rad
+                curr_z = next_z
+                last_mode = cmd.mode
                 continue
 
             if cmd.mode in ("G2", "G3"):
+                next_x_rad = round(cmd.x * x_scale, 3) / x_scale if cmd.x is not None else curr_x_rad
+                next_z = round(cmd.z, 3) if cmd.z is not None else curr_z
+                i_val = cmd.i
+                k_val = cmd.k
+                if (
+                    curr_x_rad is not None
+                    and curr_z is not None
+                    and next_x_rad is not None
+                    and next_z is not None
+                    and i_val is not None
+                    and k_val is not None
+                ):
+                    from lathecam.cad.geometry import _project_center_to_bisector
+                    import math
+                    raw_c = (curr_z + k_val, curr_x_rad + i_val)
+                    raw_r = math.hypot(k_val, i_val)
+                    exact_c, _ = _project_center_to_bisector((curr_z, curr_x_rad), (next_z, next_x_rad), raw_c, raw_r)
+                    k_val = exact_c[0] - curr_z
+                    i_val = exact_c[1] - curr_x_rad
+
                 parts = [cmd.mode]
                 if cmd.x is not None:
                     parts.append(f"X{self._fmt(cmd.x * x_scale)}")
@@ -103,24 +144,30 @@ class LinuxCNCPostProcessor(BasePostProcessor):
                     parts.append(f"Z{self._fmt(cmd.z)}")
                 # CRITICAL: In LinuxCNC G18, I is X center offset and K is Z center offset.
                 # Both I and K are ALWAYS radius/distance offsets, NEVER scaled by 2.0 in G7!
-                if cmd.i is not None:
-                    parts.append(f"I{self._fmt(cmd.i)}")
-                if cmd.k is not None:
-                    parts.append(f"K{self._fmt(cmd.k)}")
+                if i_val is not None:
+                    parts.append(f"I{self._fmt(i_val)}")
+                if k_val is not None:
+                    parts.append(f"K{self._fmt(k_val)}")
                 if cmd.f is not None:
                     parts.append(f"F{self._fmt(cmd.f)}")
                 lines.append(" ".join(parts))
+                curr_x_rad = next_x_rad
+                curr_z = next_z
+                last_mode = cmd.mode
                 continue
 
             if cmd.mode in ("G41", "G42", "G40"):
                 parts = [cmd.mode]
                 if cmd.x is not None:
                     parts.append(f"X{self._fmt(cmd.x * x_scale)}")
+                    curr_x_rad = round(cmd.x * x_scale, 3) / x_scale
                 if cmd.z is not None:
                     parts.append(f"Z{self._fmt(cmd.z)}")
+                    curr_z = round(cmd.z, 3)
                 if cmd.f is not None and cmd.mode != "G40":
                     parts.append(f"F{self._fmt(cmd.f)}")
                 lines.append(" ".join(parts))
+                last_mode = cmd.mode
                 continue
 
             if cmd.mode == "G76":

@@ -126,22 +126,25 @@ def generate_roughing_toolpath(
             ordered_cuts.sort(key=lambda c: c[0], reverse=True)
 
             for z_high, z_low in ordered_cuts:
-                # 1. Rapid to position outside material
                 approach_z = z_high + clearance_z_mm
-                commands.append(MotionCmd.rapid(x=current_x + step_dir * clearance_x_mm, z=approach_z))
-                # 2. Plunge/position at cutting depth
+                approach_x = current_x - step_dir * min(clearance_x_mm, doc_mm)
+                # 1. Rapid axially at safe X to approach_z, then radially to approach_x
+                commands.append(MotionCmd.rapid(x=safe_x, z=approach_z))
+                commands.append(MotionCmd.rapid(x=approach_x, z=approach_z))
+                # 2. Feed radially to cutting depth
                 commands.append(MotionCmd.linear(x=current_x, z=approach_z, f=feed_mm_rev))
                 # 3. Feed cut along Z towards chuck
                 commands.append(MotionCmd.linear(x=current_x, z=z_low, f=feed_mm_rev))
-                # 4. 45-degree clearance retract move (+dZ toward right, away from cut direction; away from workpiece)
+                # 4. 45-degree clearance retract move (+dZ away from cut direction, +dX away from workpiece)
                 retract_x = current_x - step_dir * retract_mm
                 retract_z = z_low + retract_mm
                 commands.append(MotionCmd.linear(x=retract_x, z=retract_z, f=feed_mm_rev * 1.5))
-                # 5. Rapid back to safe clearance plane
-                commands.append(MotionCmd.rapid(x=safe_x, z=safe_z))
+                # 5. Radial rapid out to safe clearance diameter at retract_z
+                commands.append(MotionCmd.rapid(x=safe_x, z=retract_z))
 
         current_x += step_dir * doc_mm
 
     commands.append(MotionCmd.rapid(x=safe_x, z=safe_z))
     commands.append(MotionCmd.comment("End Roughing Pass"))
     return commands
+

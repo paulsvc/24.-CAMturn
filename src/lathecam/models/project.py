@@ -21,6 +21,8 @@ from lathecam.cam.tools import LatheTool
 from lathecam.models.stock import Stock
 from lathecam.post.fanuc import FanucPostProcessor
 from lathecam.post.linuxcnc import LinuxCNCPostProcessor
+from lathecam.post.ncviewer import NCViewerPostProcessor
+from lathecam.post.verifier import VerificationReport, verify_gcode
 
 
 class OperationType(Enum):
@@ -84,13 +86,14 @@ class LatheProject:
     tools: dict[int, LatheTool] = field(default_factory=dict)
     operations: list[OperationNode] = field(default_factory=list)
     is_diameter_mode: bool = True
-    post_dialect: str = "linuxcnc"  # 'linuxcnc' or 'fanuc'
+    post_dialect: str = "linuxcnc"  # 'linuxcnc', 'fanuc', or 'ncviewer'
 
     # Computed outputs
     faces: list[TurnedFace] = field(default_factory=list)
     part_polygon: shapely.geometry.Polygon | None = None
     shadowed_polygon: shapely.geometry.Polygon | None = None
     simulation_result: SimulationResult | None = None
+    verification_report: VerificationReport | None = None
     gcode_text: str = ""
 
     def __post_init__(self) -> None:
@@ -286,6 +289,7 @@ class LatheProject:
         all_post_cmds: list[MotionCmd] = []
         all_sim_cmds: list[MotionCmd] = []
         last_tool_id: int | None = None
+        effective_z_start = self.stock.z_start_mm
 
         for op in self.operations:
             op.warning_message = None
@@ -313,7 +317,8 @@ class LatheProject:
                             raw_params={"max_rpm": op.max_rpm, "css_m_min": op.css_m_min},
                         )
                     )
-                else:
+                elif op.op_type != OperationType.DRILLING:
+                    # Note: DrillingOp.generate() emits its own SPINDLE_RPM
                     header_cmds.append(
                         MotionCmd(
                             mode="SPINDLE_RPM",
@@ -328,21 +333,29 @@ class LatheProject:
 
                 match op.op_type:
                     case OperationType.FACING:
+                        face_target_z = z_e if z_e is not None else 0.0
                         f_op = FacingOp(
                             stock=self.stock,
                             tool=tool,
-                            target_z_mm=z_e if z_e is not None else 0.0,
+                            target_z_mm=face_target_z,
                             stepover_z_mm=op.stepover_z_mm,
                             feed_mm_rev=op.feed_mm_rev,
                         )
                         op_cmds = f_op.generate()
                         op.commands = header_cmds + op_cmds
                         op.preview_commands = list(op.commands)
+                        effective_z_start = min(effective_z_start, face_target_z)
 
                     case OperationType.ROUGHING:
+                        rough_stock = Stock(
+                            od_mm=self.stock.od_mm,
+                            z_start_mm=effective_z_start,
+                            z_end_mm=self.stock.z_end_mm,
+                            id_mm=self.stock.id_mm,
+                        )
                         op_cmds = generate_roughing_toolpath(
                             profile_pts=self.contour.points,
-                            stock=self.stock,
+                            stock=rough_stock,
                             tool=tool,
                             doc_mm=op.doc_mm,
                             feed_mm_rev=op.feed_mm_rev,
@@ -399,9 +412,14 @@ class LatheProject:
                             rpm=op.rpm,
                         )
                         op.commands = header_cmds + d_op.generate()
-                        op.preview_commands = list(op.commands)
+                        op.preview_commands = header_cmds + d_op.generate_unrolled_peck_preview()
 
-                all_post_cmds.extend(op.commands)
+                dialect = self.post_dialect.lower()
+                if dialect == "ncviewer":
+                    all_post_cmds.extend(op.preview_commands)
+                else:
+                    all_post_cmds.extend(op.commands)
+
                 if op.op_type == OperationType.ROUGHING:
                     all_sim_cmds.extend(op.preview_commands)
 
@@ -421,14 +439,24 @@ class LatheProject:
                 self.simulation_result = None
 
         # Post-process G-code
-        if self.post_dialect.lower() == "fanuc":
+        dialect = self.post_dialect.lower()
+        if dialect == "fanuc":
             post = FanucPostProcessor(is_diameter_mode=self.is_diameter_mode)
+        elif dialect == "ncviewer":
+            post = NCViewerPostProcessor(is_diameter_mode=False, xz_arc_chirality=True)
         else:
             post = LinuxCNCPostProcessor(is_diameter_mode=self.is_diameter_mode)
 
         self.gcode_text = post.export(
             all_post_cmds,
             metadata={"program_name": f"LatheCAM - {self.name}"},
+        )
+
+        # Automatically verify generated G-code
+        self.verification_report = verify_gcode(
+            self.gcode_text,
+            stock=self.stock,
+            part_polygon=self.part_polygon,
         )
 
     def save_to_file(self, filepath: str | Path) -> Path:

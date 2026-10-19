@@ -129,59 +129,154 @@ def determine_arc_mode(start: Point2D, mid: Point2D, end: Point2D, center: Point
     return "G2" if cross2 < 0 else "G3"
 
 
+def _project_center_to_bisector(
+    start: Point2D,
+    end: Point2D,
+    raw_center: Point2D,
+    radius: float,
+) -> tuple[Point2D, float]:
+    """Projects a circle center onto the exact perpendicular bisector of (start, end)
+    so that dist(start, center) == dist(end, center) to machine precision.
+    """
+    z1, x1 = start
+    z2, x2 = end
+    dz = z2 - z1
+    dx = x2 - x1
+    chord = math.hypot(dz, dx)
+    if chord < 1e-9:
+        return raw_center, radius
+
+    r = max(radius, chord * 0.5 + 1e-6)
+    h = math.sqrt(max(0.0, r * r - (chord * 0.5) ** 2))
+    mz = 0.5 * (z1 + z2)
+    mx = 0.5 * (x1 + x2)
+    nz = -dx / chord
+    nx = dz / chord
+
+    c1 = (mz + h * nz, mx + h * nx)
+    c2 = (mz - h * nz, mx - h * nx)
+    d1 = math.hypot(c1[0] - raw_center[0], c1[1] - raw_center[1])
+    d2 = math.hypot(c2[0] - raw_center[0], c2[1] - raw_center[1])
+    best_c = c1 if d1 <= d2 else c2
+    exact_r = math.hypot(z1 - best_c[0], x1 - best_c[1])
+    return best_c, exact_r
+
+
+def _simplify_collinear(points: Sequence[Point2D], tol: float = 1e-4) -> list[Point2D]:
+    """Merges consecutive collinear vertices within tol while preserving corners and curve points."""
+    if len(points) <= 2:
+        return list(points)
+    out: list[Point2D] = [points[0]]
+    for pt in points[1:]:
+        if math.hypot(pt[0] - out[-1][0], pt[1] - out[-1][1]) > 1e-6:
+            out.append(pt)
+    if len(out) <= 2:
+        return out
+
+    simplified: list[Point2D] = [out[0]]
+    i = 0
+    n = len(out)
+    while i < n - 1:
+        # Check if out[i+1] is strictly collinear between out[i] and out[i+2]
+        j = i + 1
+        while j + 1 < n:
+            dev = max(point_line_distance(out[k], out[i], out[j + 1]) for k in range(i + 1, j + 1))
+            if dev <= tol:
+                j += 1
+            else:
+                break
+        simplified.append(out[j])
+        i = j
+    return simplified
+
+
 def fit_arcs_to_polyline(
     points: Sequence[Point2D],
     chordal_tolerance_mm: float = 0.005,
     min_arc_points: int = 4,
+    max_arc_radius_mm: float = 100.0,
 ) -> list[LineSegment | ArcSegment]:
     """Reconstructs continuous G1 line segments and G2/G3 circular arcs from a discrete polyline.
     
-    Greedily identifies sequences of points that conform to a circular arc within chordal_tolerance_mm.
-    Points that cannot form a circular arc or that lie straight are output as LineSegments.
+    Enforces:
+    - Collinear segments are simplified first so straight lines are never merged with corner points.
+    - Uniform chord step length and consistent curvature direction across all points in an arc.
+    - Exact perpendicular bisector center projection so dist(start, center) == dist(end, center).
     """
-    if len(points) < 2:
+    pts = _simplify_collinear(points, tol=min(1e-4, chordal_tolerance_mm * 0.1))
+    if len(pts) < 2:
         return []
-    if len(points) == 2:
-        return [LineSegment(points[0], points[1])]
+    if len(pts) == 2:
+        return [LineSegment(pts[0], pts[1])]
 
     result: list[LineSegment | ArcSegment] = []
     i = 0
-    n = len(points)
+    n = len(pts)
 
     while i < n - 1:
-        # First check if the next 3+ points can form an arc
         best_arc: ArcSegment | None = None
         best_arc_len = 0
 
-        # Try to extend an arc as far forward as possible
         for j in range(i + min_arc_points, n + 1):
-            sub_pts = points[i:j]
-            # First check if sub_pts are essentially a straight line
+            sub_pts = pts[i:j]
+
+            # 1. Check chord lengths are reasonably uniform and not long straight lines
+            chords = [
+                math.hypot(sub_pts[k + 1][0] - sub_pts[k][0], sub_pts[k + 1][1] - sub_pts[k][1])
+                for k in range(len(sub_pts) - 1)
+            ]
+            max_chord = max(chords)
+            min_chord = max(1e-6, min(chords))
+            if max_chord > 3.5 or (max_chord / min_chord) > 3.5:
+                break
+
+            # 2. Check consistent turning direction (no inflection points or straight lines)
+            cross_signs: list[int] = []
+            valid_turn = True
+            for k in range(len(sub_pts) - 2):
+                dz1 = sub_pts[k + 1][0] - sub_pts[k][0]
+                dx1 = sub_pts[k + 1][1] - sub_pts[k][1]
+                dz2 = sub_pts[k + 2][0] - sub_pts[k + 1][0]
+                dx2 = sub_pts[k + 2][1] - sub_pts[k + 1][1]
+                cr = dz1 * dx2 - dx1 * dz2
+                if abs(cr) < 1e-6:
+                    valid_turn = False
+                    break
+                cross_signs.append(1 if cr > 0 else -1)
+            if not valid_turn or len(set(cross_signs)) > 1:
+                break
+
+            # 3. Check sagitta (bulge height) is meaningfully curved
             max_line_dev = max(point_line_distance(pt, sub_pts[0], sub_pts[-1]) for pt in sub_pts)
-            if max_line_dev <= chordal_tolerance_mm:
-                # Still effectively a straight line; don't force a huge arc
+            if max_line_dev <= max(0.01, chordal_tolerance_mm * 2.5):
                 continue
 
+            # 4. Fit circle via Kåsa and project center onto exact perpendicular bisector
             fit = fit_circle_kasa(sub_pts)
             if fit is None:
                 break
 
-            center, radius, max_dev = fit
-            # Check maximum error against tolerance
-            if max_dev > chordal_tolerance_mm:
-                # Out of tolerance
+            raw_center, raw_radius, _ = fit
+            if raw_radius < 0.08 or raw_radius > max_arc_radius_mm:
                 break
 
-            # Check that arc sweep angle is <= 180 degrees
+            center, radius = _project_center_to_bisector(sub_pts[0], sub_pts[-1], raw_center, raw_radius)
+            max_dev = max(
+                abs(math.hypot(pt[0] - center[0], pt[1] - center[1]) - radius)
+                for pt in sub_pts
+            )
+            if max_dev > chordal_tolerance_mm:
+                break
+
+            # 5. Check that arc sweep angle is <= 120 degrees
             zc, xc = center
             start_vec = (sub_pts[0][0] - zc, sub_pts[0][1] - xc)
             end_vec = (sub_pts[-1][0] - zc, sub_pts[-1][1] - xc)
             dot = start_vec[0] * end_vec[0] + start_vec[1] * end_vec[1]
             cos_theta = max(-1.0, min(1.0, dot / (radius * radius)))
-            if cos_theta < -0.1:  # Angle > ~100 deg per sub-arc to avoid ambiguity
+            if cos_theta < -0.25:
                 break
 
-            # Arc is valid
             mid_idx = len(sub_pts) // 2
             mode = determine_arc_mode(sub_pts[0], sub_pts[mid_idx], sub_pts[-1], center)
             best_arc = ArcSegment(
@@ -195,12 +290,12 @@ def fit_arcs_to_polyline(
 
         if best_arc is not None and best_arc_len >= min_arc_points:
             result.append(best_arc)
-            i += best_arc_len - 1  # Advance to the end of the arc
+            i += best_arc_len - 1
         else:
-            # Check how far a straight line can go
+            # Extend straight line segment as far as collinear within tolerance
             j = i + 1
             while j < n:
-                candidate_pts = points[i : j + 1]
+                candidate_pts = pts[i : j + 1]
                 max_dev = max(
                     point_line_distance(pt, candidate_pts[0], candidate_pts[-1])
                     for pt in candidate_pts
@@ -208,12 +303,12 @@ def fit_arcs_to_polyline(
                 if max_dev > chordal_tolerance_mm:
                     break
                 j += 1
-            # Line goes up to j - 1 (at least i + 1)
             line_end_idx = max(i + 1, j - 1)
-            result.append(LineSegment(points[i], points[line_end_idx]))
+            result.append(LineSegment(pts[i], pts[line_end_idx]))
             i = line_end_idx
 
     return result
+
 
 
 def resample_polyline(points: Sequence[Point2D], step_mm: float = 0.5) -> list[Point2D]:

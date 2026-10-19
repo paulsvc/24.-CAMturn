@@ -51,17 +51,15 @@ class FacingOp:
         commands.append(MotionCmd.rapid(x=start_x, z=self.stock.z_start_mm + self.retract_z_mm))
 
         for z_cut in z_passes:
-            # 1. Position at start of facing cut
-            commands.append(MotionCmd.rapid(x=start_x, z=z_cut + self.retract_z_mm))
+            # 1. Rapid axially at safe X to z_cut
             commands.append(MotionCmd.rapid(x=start_x, z=z_cut))
             # 2. Linear plunge down past centerline
             commands.append(MotionCmd.linear(x=end_x, z=z_cut, f=self.feed_mm_rev))
-            # 3. Retract along Z
+            # 3. Retract axially along Z away from newly cut face
             commands.append(MotionCmd.linear(x=end_x, z=z_cut + self.retract_z_mm, f=self.feed_mm_rev * 2.0))
-            # 4. Rapid back to safe diameter
+            # 4. Rapid radially back to safe diameter
             commands.append(MotionCmd.rapid(x=start_x, z=z_cut + self.retract_z_mm))
 
-        commands.append(MotionCmd.rapid(x=start_x, z=self.stock.z_start_mm + self.retract_z_mm))
         commands.append(MotionCmd.comment("End Facing Operation"))
         return commands
 
@@ -144,12 +142,16 @@ class ThreadingOp:
     def generate_unrolled_g33_preview(self) -> list[MotionCmd]:
         """Generates unrolled G33 preview passes with constant chip-area degression and modified flank infeed."""
         preview_cmds: list[MotionCmd] = []
+        preview_cmds.append(MotionCmd.comment(f"Threading Operation (Unrolled): M{self.major_dia_mm:.1f}x{self.pitch_mm:.2f} Z={self.z_start_mm:.1f} -> {self.z_end_mm:.1f}"))
         safe_x = self.major_radius + 1.5
         lead_in_z = self.z_start_mm + 2.0 * self.pitch_mm
 
         infeed_rad = math.radians(self.infeed_angle_deg)
         total_k = self.thread_depth_mm
         first_j = self.initial_cut_depth_mm
+
+        # Orthogonal initial positioning outside the thread OD
+        preview_cmds.append(MotionCmd.rapid(x=safe_x, z=lead_in_z))
 
         # Estimate number of passes using constant chip volume
         num_passes = max(2, int(math.ceil((total_k / first_j) ** 2)))
@@ -164,7 +166,7 @@ class ThreadingOp:
             pass_end_z = self.z_end_mm - z_infeed_shift
 
             preview_cmds.append(MotionCmd.rapid(x=safe_x, z=pass_start_z))
-            preview_cmds.append(MotionCmd.linear(x=current_radius, z=pass_start_z))
+            preview_cmds.append(MotionCmd.linear(x=current_radius, z=pass_start_z, f=self.pitch_mm))
             # G33 synchronized move
             preview_cmds.append(MotionCmd(mode="G33", x=current_radius, z=pass_end_z, k=self.pitch_mm))
             preview_cmds.append(MotionCmd.rapid(x=safe_x, z=pass_end_z))
@@ -178,11 +180,12 @@ class ThreadingOp:
             pass_end_z = self.z_end_mm - z_infeed_shift
 
             preview_cmds.append(MotionCmd.rapid(x=safe_x, z=pass_start_z))
-            preview_cmds.append(MotionCmd.linear(x=current_radius, z=pass_start_z))
+            preview_cmds.append(MotionCmd.linear(x=current_radius, z=pass_start_z, f=self.pitch_mm))
             preview_cmds.append(MotionCmd(mode="G33", x=current_radius, z=pass_end_z, k=self.pitch_mm))
             preview_cmds.append(MotionCmd.rapid(x=safe_x, z=pass_end_z))
             preview_cmds.append(MotionCmd.rapid(x=safe_x, z=lead_in_z))
 
+        preview_cmds.append(MotionCmd.comment("End Threading Operation"))
         return preview_cmds
 
 
@@ -212,6 +215,9 @@ class PartingOp:
         commands.append(MotionCmd.comment(f"Begin Parting/Grooving Op at Z={self.target_z_mm:.2f} -> X={self.target_x_radius_mm:.2f}"))
 
         safe_x = self.stock.od_radius + 1.5
+        safe_z = self.stock.z_start_mm + 2.0
+        # Orthogonal approach: first clear radially in X at safe Z, then move axially to target_z_mm
+        commands.append(MotionCmd.rapid(x=safe_x, z=safe_z))
         commands.append(MotionCmd.rapid(x=safe_x, z=self.target_z_mm))
 
         current_x = self.stock.od_radius
@@ -225,13 +231,12 @@ class PartingOp:
             if next_x > self.target_x_radius_mm + 1e-4:
                 retract_x = min(safe_x, next_x + self.chip_break_retract_mm)
                 commands.append(MotionCmd.rapid(x=retract_x, z=self.target_z_mm))
-                # Rapid back to previous peck bottom before continuing
-                commands.append(MotionCmd.rapid(x=next_x + 0.1, z=self.target_z_mm))
 
             current_x = next_x
 
         # Dwell/retract back to safe clearance
         commands.append(MotionCmd.rapid(x=safe_x, z=self.target_z_mm))
+        commands.append(MotionCmd.rapid(x=safe_x, z=safe_z))
         commands.append(MotionCmd.comment("End Parting/Grooving Op"))
         return commands
 
@@ -282,3 +287,26 @@ class DrillingOp:
         commands.append(MotionCmd.rapid(x=0.0, z=self.r_plane_mm + 5.0))
         commands.append(MotionCmd.comment("End Drilling Operation"))
         return commands
+
+    def generate_unrolled_peck_preview(self) -> list[MotionCmd]:
+        """Generates explicit G0/G1 peck drilling moves for simulators that do not expand G83/G74."""
+        commands: list[MotionCmd] = []
+        commands.append(MotionCmd.comment(f"Drilling Operation (Unrolled Peck): Depth={self.z_depth_mm:.2f}mm"))
+        commands.append(MotionCmd(mode="SPINDLE_RPM", raw_params={"rpm": self.rpm}))
+        commands.append(MotionCmd.rapid(x=0.0, z=self.r_plane_mm + 2.0))
+        commands.append(MotionCmd.rapid(x=0.0, z=self.r_plane_mm))
+
+        curr_z = 0.0
+        peck = max(0.5, abs(self.peck_q_mm))
+        while curr_z > self.z_depth_mm + 1e-4:
+            next_z = max(self.z_depth_mm, curr_z - peck)
+            commands.append(MotionCmd.linear(x=0.0, z=next_z, f=self.feed_mm_rev))
+            commands.append(MotionCmd.rapid(x=0.0, z=self.r_plane_mm))
+            if next_z > self.z_depth_mm + 1e-4:
+                commands.append(MotionCmd.rapid(x=0.0, z=next_z + 0.5))
+            curr_z = next_z
+
+        commands.append(MotionCmd.rapid(x=0.0, z=self.r_plane_mm + 5.0))
+        commands.append(MotionCmd.comment("End Drilling Operation"))
+        return commands
+

@@ -177,7 +177,7 @@ class LatheCAMMainWindow(QMainWindow):
         self.tree_dock.set_project(self.project)
         self.tools_dock.set_project(self.project)
         self.props_dock.set_project(self.project)
-        self.gcode_dock.set_gcode(self.project.gcode_text)
+        self.gcode_dock.set_gcode(self.project.gcode_text, self.project.verification_report)
         self.viewport.render_project(self.project, active_op_id=self._active_op_id)
 
     def set_theme_mode(self, mode: str) -> None:
@@ -243,7 +243,7 @@ class LatheCAMMainWindow(QMainWindow):
         self.project.post_dialect = dialect
         self.project.recalculate_all()
         self.tree_dock.refresh()
-        self.gcode_dock.set_gcode(self.project.gcode_text)
+        self.gcode_dock.set_gcode(self.project.gcode_text, self.project.verification_report)
         self.statusBar().showMessage(tr("status.dialect_switched", dialect=dialect.upper()))
 
     def _on_viewport_face_selected(self, face_id: str) -> None:
@@ -273,7 +273,7 @@ class LatheCAMMainWindow(QMainWindow):
         self.props_dock._populate_face_combo()
         self.props_dock.inspect_operation(new_op)
         self.props_dock.update_simulation_labels()
-        self.gcode_dock.set_gcode(self.project.gcode_text)
+        self.gcode_dock.set_gcode(self.project.gcode_text, self.project.verification_report)
         self.tree_dock.select_operation_by_id(new_op.op_id)
         self.viewport.select_face(face.face_id, emit_signal=False)
         self.viewport.render_project(self.project, active_op_id=new_op.op_id)
@@ -317,7 +317,7 @@ class LatheCAMMainWindow(QMainWindow):
         self.project.recalculate_all()
         self.tree_dock.refresh()
         self.props_dock.update_simulation_labels()
-        self.gcode_dock.set_gcode(self.project.gcode_text)
+        self.gcode_dock.set_gcode(self.project.gcode_text, self.project.verification_report)
         self.viewport.render_project(self.project, active_op_id=self._active_op_id)
 
     def action_view_all_operations(self) -> None:
