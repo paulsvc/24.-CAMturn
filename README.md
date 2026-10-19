@@ -59,11 +59,34 @@ pip install -r requirements.txt
 ```
 
 ### Launch Desktop Application
-```bash
-PYTHONPATH=src python -m lathecam.main
+
+**Option 1 — Simple (All platforms: PowerShell, CMD, Linux, macOS):**
+```powershell
+python run.py
 ```
+
+**Option 2 — Windows PowerShell script:**
+```powershell
+.\run.ps1
+```
+
+**Option 3 — Windows Command Prompt / Double-click:**
+```cmd
+run.bat
+```
+
+**Option 4 — Module with environment variable:**
+- **PowerShell:**
+  ```powershell
+  $env:PYTHONPATH = "src"; python -m lathecam.main
+  ```
+- **Linux / macOS / Git Bash:**
+  ```bash
+  PYTHONPATH=src python -m lathecam.main
+  ```
 
 ### Run Headless Unit Tests
 ```bash
 python -m pytest -v
 ```
+
