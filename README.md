@@ -99,3 +99,14 @@ run.bat
 python -m pytest -v
 ```
 
+---
+
+## Sample CNC G-Code Outputs
+
+Sample G-code programs ready to be loaded into external CNC machine simulators (NC Viewer, CAMotics, LinuxCNC native plot, Fanuc CNC Guide) are published in the [`gcode/`](gcode/) folder:
+
+- **[`gcode/stepped_shaft_linuxcnc.ngc`](gcode/stepped_shaft_linuxcnc.ngc)**: LinuxCNC / Machinekit lathe dialect with `G7` diameter mode, `T<id> M6 G43`, `G96 D<rpm> S<css>`, `G2`/`G3` TNRC finishing, `G76` threading, and `G83` drilling.
+- **[`gcode/stepped_shaft_fanuc.nc`](gcode/stepped_shaft_fanuc.nc)**: Fanuc 0i-TF / ISO dialect with `G50 S<rpm>`, `T0101`, `G96 S<css> M03`, 2-block `G76` threading cycle, and `G28` reference return.
+- **[`gcode/stepped_shaft_face_bounded.ngc`](gcode/stepped_shaft_face_bounded.ngc)**: Example demonstrating interactive CAD face-bounded selective roughing.
+
+
