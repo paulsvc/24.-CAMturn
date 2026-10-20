@@ -183,6 +183,25 @@ def verify_gcode(
         if not stripped or stripped == "%":
             continue
 
+        # Check for nested comments, e.g. (foo (bar))
+        comment_depth = 0
+        has_nested = False
+        for ch in stripped:
+            if ch == "(":
+                if comment_depth > 0:
+                    has_nested = True
+                comment_depth += 1
+            elif ch == ")":
+                comment_depth = max(0, comment_depth - 1)
+        if has_nested:
+            issues.append(GCodeIssue(
+                line_number=idx,
+                code="NESTED_COMMENT",
+                severity="ERROR",
+                message="Nested comment found; parenthetical comments cannot contain '(' or ')'",
+                raw_line=stripped,
+            ))
+
         # Check comment for operation context
         if stripped.startswith("(") and stripped.endswith(")"):
             upper_c = stripped.upper()

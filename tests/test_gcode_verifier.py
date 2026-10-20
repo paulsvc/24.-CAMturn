@@ -46,12 +46,12 @@ def test_published_gcode_folder_files_are_valid() -> None:
 
 def test_verifier_catches_runaway_arcs_and_diagonal_rapids() -> None:
     """Ensures the automated verifier catches bogus runaway arcs, radius mismatches,
-    and diagonal rapid collisions inside the stock envelope.
+    nested comments, and diagonal rapid collisions inside the stock envelope.
     """
     proj = LatheProject.create_demo_project()
 
     bad_gcode = """%
-(BAD GCODE TEST)
+(BAD GCODE TEST (NESTED))
 G18 G21 G40 G80 G90 G95 G7
 T1 M6 G43
 G96 D2500 S200 M3
@@ -67,6 +67,7 @@ M30
     report = verify_gcode(bad_gcode, stock=proj.stock, part_polygon=proj.part_polygon)
     assert not report.is_valid
     error_codes = {issue.code for issue in report.issues if issue.severity == "ERROR"}
+    assert "NESTED_COMMENT" in error_codes
     assert "RAPID_DIAGONAL_IN_STOCK" in error_codes
     assert "RAPID_PART_COLLISION" in error_codes
     assert "ARC_RUNAWAY_RADIUS" in error_codes

@@ -34,7 +34,7 @@ class FanucPostProcessor(BasePostProcessor):
 
         lines.append("%")
         prog_num = meta.get("program_number", "O0001")
-        comment_hdr = meta.get("program_name", "LATHECAM FANUC 0I-TF")
+        comment_hdr = self.sanitize_comment(meta.get("program_name", "LATHECAM FANUC 0I-TF"))
         lines.append(f"{prog_num} ({comment_hdr.upper()})")
         lines.append("G18 G21 G40 G80 G99")
 
@@ -54,7 +54,8 @@ class FanucPostProcessor(BasePostProcessor):
 
         for cmd in commands:
             if cmd.mode == "COMMENT":
-                text = cmd.raw_params.get("comment", "") if cmd.raw_params else ""
+                raw_text = cmd.raw_params.get("comment", "") if cmd.raw_params else ""
+                text = self.sanitize_comment(raw_text)
                 lines.append(f"({text.upper()})")
                 continue
 

@@ -35,7 +35,7 @@ class NCViewerPostProcessor(BasePostProcessor):
         meta = metadata or {}
         lines: list[str] = []
 
-        comment_hdr = meta.get("program_name", "LATHECAM - UNIVERSAL NCVIEWER SIMULATOR")
+        comment_hdr = self.sanitize_comment(meta.get("program_name", "LATHECAM - UNIVERSAL NCVIEWER SIMULATOR"))
         lines.append(f"({comment_hdr.upper()})")
         lines.append("(COORDINATE MODE: 1:1 RADIUS MODE FOR CARTESIAN BACKPLOTTERS)")
         lines.append("G21 G40 G80 G90")
@@ -48,7 +48,8 @@ class NCViewerPostProcessor(BasePostProcessor):
 
         for cmd in commands:
             if cmd.mode == "COMMENT":
-                text = cmd.raw_params.get("comment", "") if cmd.raw_params else ""
+                raw_text = cmd.raw_params.get("comment", "") if cmd.raw_params else ""
+                text = self.sanitize_comment(raw_text)
                 lines.append(f"({text.upper()})")
                 continue
 

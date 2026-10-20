@@ -15,7 +15,7 @@ G1 X-1.600 Z1.000 F0.400
 G0 X43.000 Z1.000
 (End Facing Operation)
 G96 D2500 S200 M3
-(Begin OD Roughing Pass (DOC: 1.80mm, Feed: 0.250mm/rev))
+(Begin OD Roughing Pass [DOC: 1.80mm, Feed: 0.250mm/rev])
 G0 X42.000 Z1.000
 G0 X38.400 Z1.000
 G1 X36.400 Z1.000 F0.250
@@ -62,7 +62,7 @@ G0 X42.000 Z1.000
 (End Roughing Pass)
 T2 M6 G43
 G96 D2800 S240 M3
-(Begin Profile Finishing Pass (COMPUTER Comp, Feed: 0.120mm/rev))
+(Begin Profile Finishing Pass [COMPUTER Comp, Feed: 0.120mm/rev])
 G0 X44.000 Z1.100
 G0 X14.331 Z1.100
 G1 X13.331 Z-0.400 F0.120
@@ -92,7 +92,7 @@ G0 X20.000 Z2.000
 G76 P1.500 Z-12.500 I-0.200 J0.200 K0.920 R1.000 Q29.500 H1 E0.000 L0
 (End Threading Operation)
 T6 M6 G43
-(Drilling Operation (G83): Depth=-22.00mm)
+(Drilling Operation [G83]: Depth=-22.00mm)
 G97 S1200 M3
 G0 X0.000 Z3.000
 G83 X0.000 Z-22.000 R1.000 Q4.000 F0.120
