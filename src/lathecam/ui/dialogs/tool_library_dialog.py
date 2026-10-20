@@ -273,13 +273,25 @@ class Insert2DPreviewWidget(QWidget):
         painter.setPen(dim_color)
 
         if shape in ("PART", "DRILL"):
-            painter.drawText(10, 36, f"Width: {tip_w:.2f} mm | Thickness: {thickness:.2f} mm")
+            painter.drawText(
+                10,
+                36,
+                f"{tr('tools.preview_width')}: {tip_w:.2f} mm | {tr('tools.preview_thickness')}: {thickness:.2f} mm",
+            )
         else:
-            painter.drawText(10, 36, f"IC: Ø{ic:.3f} mm | Thickness (s): {thickness:.2f} mm | Nose (rε): {nose_r:.2f} mm")
+            painter.drawText(
+                10,
+                36,
+                f"{tr('tools.preview_ic')}: Ø{ic:.3f} mm | {tr('tools.preview_thickness')}: {thickness:.2f} mm | {tr('tools.preview_nose_r')}: {nose_r:.2f} mm",
+            )
 
-        painter.drawText(10, self.height() - 10, f"Orient: Q{tool.orientation.value} | Lead: {tool.lead_angle_deg:.1f}° | Clearance: {tool.clearance_angle_deg:.1f}°")
+        painter.drawText(
+            10,
+            self.height() - 10,
+            f"{tr('tools.preview_orient')}: Q{tool.orientation.value} | {tr('tools.preview_lead')}: {tool.lead_angle_deg:.1f}° | {tr('tools.preview_clearance')}: {tool.clearance_angle_deg:.1f}°",
+        )
         painter.setPen(QColor("#ef4444"))
-        painter.drawText(int(tip_pos.x() + 6), int(tip_pos.y() - 6), "Tip (0, 0)")
+        painter.drawText(int(tip_pos.x() + 6), int(tip_pos.y() - 6), tr("tools.preview_tip"))
 
 
 class ToolLibraryDialog(QDialog):
@@ -382,7 +394,7 @@ class ToolLibraryDialog(QDialog):
 
         # 1. Preset Selector
         self.combo_preset = QComboBox()
-        self.combo_preset.addItem("— Custom Dimensions —", "")
+        self.combo_preset.addItem(tr("tools.preset_custom"), "")
         for preset_name in ISO_INSERT_PRESETS:
             self.combo_preset.addItem(f"★ {preset_name}", preset_name)
         self.combo_preset.currentIndexChanged.connect(self._on_preset_selected)
@@ -404,15 +416,16 @@ class ToolLibraryDialog(QDialog):
         # 3. Shape & Hand
         shape_hand_row = QHBoxLayout()
         self.combo_shape = QComboBox()
-        for letter, desc in ISO_SHAPE_DESCRIPTIONS.items():
+        for letter in ISO_SHAPE_DESCRIPTIONS:
+            desc = tr(f"tools.shape_{letter.lower()}")
             self.combo_shape.addItem(f"{letter} — {desc}", letter)
         self.combo_shape.currentIndexChanged.connect(self._on_field_changed)
         shape_hand_row.addWidget(self.combo_shape, stretch=2)
 
         self.combo_hand = QComboBox()
-        self.combo_hand.addItem("Right Hand (R)", "R")
-        self.combo_hand.addItem("Left Hand (L)", "L")
-        self.combo_hand.addItem("Neutral (N)", "N")
+        self.combo_hand.addItem(tr("tools.hand_r"), "R")
+        self.combo_hand.addItem(tr("tools.hand_l"), "L")
+        self.combo_hand.addItem(tr("tools.hand_n"), "N")
         self.combo_hand.currentIndexChanged.connect(self._on_field_changed)
         shape_hand_row.addWidget(self.combo_hand, stretch=1)
         form_layout.addRow(tr("tools.shape_hand", default="ISO Shape & Hand:"), shape_hand_row)
@@ -425,7 +438,7 @@ class ToolLibraryDialog(QDialog):
         self.spin_ic.setSingleStep(0.5)
         self.spin_ic.setSuffix(" mm")
         self.spin_ic.valueChanged.connect(self._on_field_changed)
-        dim_row1.addWidget(QLabel("IC (d):"))
+        dim_row1.addWidget(QLabel(tr("tools.param_ic")))
         dim_row1.addWidget(self.spin_ic)
 
         self.spin_thickness = QDoubleSpinBox()
@@ -434,7 +447,7 @@ class ToolLibraryDialog(QDialog):
         self.spin_thickness.setSingleStep(0.2)
         self.spin_thickness.setSuffix(" mm")
         self.spin_thickness.valueChanged.connect(self._on_field_changed)
-        dim_row1.addWidget(QLabel("Thickness (s):"))
+        dim_row1.addWidget(QLabel(tr("tools.param_thickness")))
         dim_row1.addWidget(self.spin_thickness)
 
         self.spin_nose_r = QDoubleSpinBox()
@@ -443,7 +456,7 @@ class ToolLibraryDialog(QDialog):
         self.spin_nose_r.setSingleStep(0.1)
         self.spin_nose_r.setSuffix(" mm")
         self.spin_nose_r.valueChanged.connect(self._on_field_changed)
-        dim_row1.addWidget(QLabel("Nose (rε):"))
+        dim_row1.addWidget(QLabel(tr("tools.param_nose_r")))
         dim_row1.addWidget(self.spin_nose_r)
         form_layout.addRow(tr("tools.dimensions", default="Dimensions:"), dim_row1)
 
@@ -453,7 +466,7 @@ class ToolLibraryDialog(QDialog):
         self.spin_edge_len.setDecimals(1)
         self.spin_edge_len.setSuffix(" mm")
         self.spin_edge_len.valueChanged.connect(self._on_field_changed)
-        dim_row2.addWidget(QLabel("Edge (l):"))
+        dim_row2.addWidget(QLabel(tr("tools.param_edge_len")))
         dim_row2.addWidget(self.spin_edge_len)
 
         self.spin_tip_width = QDoubleSpinBox()
@@ -461,7 +474,7 @@ class ToolLibraryDialog(QDialog):
         self.spin_tip_width.setDecimals(2)
         self.spin_tip_width.setSuffix(" mm")
         self.spin_tip_width.valueChanged.connect(self._on_field_changed)
-        dim_row2.addWidget(QLabel("Width (w):"))
+        dim_row2.addWidget(QLabel(tr("tools.param_tip_width")))
         dim_row2.addWidget(self.spin_tip_width)
 
         self.spin_max_doc = QDoubleSpinBox()
@@ -469,7 +482,7 @@ class ToolLibraryDialog(QDialog):
         self.spin_max_doc.setDecimals(2)
         self.spin_max_doc.setSuffix(" mm")
         self.spin_max_doc.valueChanged.connect(self._on_field_changed)
-        dim_row2.addWidget(QLabel("Max DOC:"))
+        dim_row2.addWidget(QLabel(tr("tools.param_max_doc")))
         dim_row2.addWidget(self.spin_max_doc)
         form_layout.addRow(tr("tools.cut_limits", default="Cutting Limits:"), dim_row2)
 
@@ -480,7 +493,7 @@ class ToolLibraryDialog(QDialog):
         self.spin_lead_angle.setDecimals(1)
         self.spin_lead_angle.setSuffix("°")
         self.spin_lead_angle.valueChanged.connect(self._on_field_changed)
-        angles_row.addWidget(QLabel("Lead (κr):"))
+        angles_row.addWidget(QLabel(tr("tools.param_lead_angle")))
         angles_row.addWidget(self.spin_lead_angle)
 
         self.spin_clearance_angle = QDoubleSpinBox()
@@ -488,21 +501,14 @@ class ToolLibraryDialog(QDialog):
         self.spin_clearance_angle.setDecimals(1)
         self.spin_clearance_angle.setSuffix("°")
         self.spin_clearance_angle.valueChanged.connect(self._on_field_changed)
-        angles_row.addWidget(QLabel("Clearance (α):"))
+        angles_row.addWidget(QLabel(tr("tools.param_clearance")))
         angles_row.addWidget(self.spin_clearance_angle)
 
         self.combo_orientation = QComboBox()
-        self.combo_orientation.addItem("Q1 (+Z, +X)", 1)
-        self.combo_orientation.addItem("Q2 (-Z, +X)", 2)
-        self.combo_orientation.addItem("Q3: OD Turning Right-Hand (-Z, -X)", 3)
-        self.combo_orientation.addItem("Q4 (+Z, -X)", 4)
-        self.combo_orientation.addItem("Q5 (+Z, 0)", 5)
-        self.combo_orientation.addItem("Q6 (0, +X)", 6)
-        self.combo_orientation.addItem("Q7: Axial Drill (-Z, 0)", 7)
-        self.combo_orientation.addItem("Q8: Facing / Threading (0, -X)", 8)
-        self.combo_orientation.addItem("Q9: Round / Centerline (0, 0)", 9)
+        for q in range(1, 10):
+            self.combo_orientation.addItem(tr(f"tools.orient_q{q}"), q)
         self.combo_orientation.currentIndexChanged.connect(self._on_field_changed)
-        angles_row.addWidget(QLabel("Orient:"))
+        angles_row.addWidget(QLabel(tr("tools.param_orient")))
         angles_row.addWidget(self.combo_orientation)
         form_layout.addRow(tr("tools.angles_orient", default="Angles & Orient:"), angles_row)
 
@@ -656,7 +662,11 @@ class ToolLibraryDialog(QDialog):
         if new_tool_id != self._current_tool_id:
             # Check collision
             if new_tool_id in self._tools and new_tool_id != self._current_tool_id:
-                QMessageBox.warning(self, "Pocket Collision", f"Pocket T{new_tool_id} already exists!")
+                QMessageBox.warning(
+                    self,
+                    tr("tools.msg_pocket_collision_title"),
+                    tr("tools.msg_pocket_collision", tool_id=new_tool_id),
+                )
                 self.spin_tool_id.blockSignals(True)
                 self.spin_tool_id.setValue(self._current_tool_id)
                 self.spin_tool_id.blockSignals(False)
@@ -716,7 +726,11 @@ class ToolLibraryDialog(QDialog):
 
     def _action_delete_tool(self) -> None:
         if len(self._tools) <= 1:
-            QMessageBox.information(self, "Delete Tool", "At least one tool must remain in the library.")
+            QMessageBox.information(
+                self,
+                tr("tools.msg_delete_min_title"),
+                tr("tools.msg_delete_min"),
+            )
             return
         if self._current_tool_id not in self._tools:
             return
@@ -728,8 +742,8 @@ class ToolLibraryDialog(QDialog):
     def _action_reset_defaults(self) -> None:
         reply = QMessageBox.question(
             self,
-            "Reset Turret",
-            "Reset all tools in the library to standard defaults (CNMG, DNMG, VNMG, Parting, Threading, Drill)?",
+            tr("tools.msg_reset_title"),
+            tr("tools.msg_reset_confirm"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
@@ -741,7 +755,7 @@ class ToolLibraryDialog(QDialog):
     def _action_export_library(self) -> None:
         filepath, _ = QFileDialog.getSaveFileName(
             self,
-            "Export Tool Library",
+            tr("tools.msg_export_title"),
             "lathecam_tool_library.json",
             "JSON Files (*.json);;All Files (*)",
         )
@@ -752,12 +766,16 @@ class ToolLibraryDialog(QDialog):
             "tools": [t.to_dict() for t in sorted(self._tools.values(), key=lambda t: t.tool_id)],
         }
         Path(filepath).write_text(json.dumps(data, indent=2), encoding="utf-8")
-        QMessageBox.information(self, "Export Successful", f"Saved {len(self._tools)} tools to {Path(filepath).name}.")
+        QMessageBox.information(
+            self,
+            tr("tools.msg_export_success_title"),
+            tr("tools.msg_export_success", count=len(self._tools), name=Path(filepath).name),
+        )
 
     def _action_import_library(self) -> None:
         filepath, _ = QFileDialog.getOpenFileName(
             self,
-            "Import Tool Library",
+            tr("tools.msg_import_title"),
             "",
             "JSON Files (*.json);;All Files (*)",
         )
@@ -774,9 +792,17 @@ class ToolLibraryDialog(QDialog):
                 self._current_tool_id = min(self._tools.keys())
                 self._populate_table()
                 self._select_tool_in_table(self._current_tool_id)
-                QMessageBox.information(self, "Import Successful", f"Imported {len(loaded_tools)} tools from {Path(filepath).name}.")
+                QMessageBox.information(
+                    self,
+                    tr("tools.msg_import_success_title"),
+                    tr("tools.msg_import_success", count=len(loaded_tools), name=Path(filepath).name),
+                )
         except Exception as exc:
-            QMessageBox.critical(self, "Import Error", f"Failed to import tool library:\n{exc}")
+            QMessageBox.critical(
+                self,
+                tr("tools.msg_import_error_title"),
+                tr("tools.msg_import_error", err=str(exc)),
+            )
 
     def _action_apply(self) -> None:
         """Applies working tools back to the active LatheProject."""

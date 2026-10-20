@@ -1,5 +1,8 @@
 # LatheCAM — CNC Turning CAD/CAM Workbench for LinuxCNC
 
+[![English Version](https://img.shields.io/badge/Language-English-blue.svg)](README.md)
+[![Version Française](https://img.shields.io/badge/Langue-Français-green.svg)](README_fr.md)
+
 **LatheCAM** is a professional open-source desktop CAD/CAM application for CNC turning built with **PySide6 (Qt6)**, **PyVista (VTK)**, **OpenCASCADE (`cadquery-ocp`)**, **`ezdxf`**, **`Shapely` (GEOS)**, and **`PyClipper`**.
 
 ---

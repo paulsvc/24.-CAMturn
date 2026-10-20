@@ -142,3 +142,26 @@ def test_tool_library_dialog_crud(qapp, tmp_path: Path):
     dialog._action_apply()
     assert len(proj.tools) == initial_count + 1
     dialog.close()
+
+
+def test_tool_library_dialog_french_localization(qapp):
+    from lathecam.ui.i18n import get_language, set_language, tr
+
+    set_language("fr")
+    try:
+        assert get_language() == "fr"
+        proj = LatheProject.create_demo_project()
+        dialog = ToolLibraryDialog(project=proj)
+        
+        # Verify French translations in tool library dialog
+        assert "Éditeur de Bibliothèque" in dialog.windowTitle()
+        assert "Losange 80°" in dialog.combo_shape.itemText(0)
+        assert "À droite (R)" in dialog.combo_hand.itemText(0)
+        assert "Q3 : Tournage extérieur" in dialog.combo_orientation.itemText(2)
+        assert "Préréglage Standard ISO" in tr("tools.iso_preset")
+        assert "Rayon de bec" in tr("tools.param_nose_r")
+        assert "Angle d'attaque" in tr("tools.param_lead_angle")
+        assert "Angle de dépouille" in tr("tools.param_clearance")
+        dialog.close()
+    finally:
+        set_language("en")
