@@ -68,3 +68,28 @@ def test_i18n_french_and_light_theme() -> None:
     assert dark_colors["profile_line"] == "#f8fafc"
 
 
+def test_import_new_file_removes_existing_operations() -> None:
+    """Verify that importing a new CAD model removes all existing operations and resets selections."""
+    from pathlib import Path
+    from PySide6.QtWidgets import QApplication
+    from lathecam.ui.main_window import LatheCAMMainWindow
+
+    app = QApplication.instance() or QApplication([])
+    win = LatheCAMMainWindow()
+
+    # Initial demo project has 6 operations
+    assert len(win.project.operations) == 6
+
+    step_file = Path("step/Part1.STEP")
+    if step_file.exists():
+        win.load_cad_file(step_file)
+
+        # After importing a new file, all previous operations must be cleared
+        assert len(win.project.operations) == 0
+        assert win._active_op_id is None
+        assert win.viewport._active_face_id is None
+        assert win.project.name == "Part1"
+    win.close()
+
+
+

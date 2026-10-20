@@ -398,6 +398,13 @@ class LatheCAMMainWindow(QMainWindow):
 
             self.project.name = path.stem
             self.project.contour = contour
+            # When importing a new CAD model, clear all existing operations and reset selections
+            self.project.operations.clear()
+            self._active_op_id = None
+            self.viewport.sim_stop()
+            self.viewport.select_face(None, emit_signal=False)
+            self.project.__post_init__()
+
             # Automatically size stock with +4mm OD margin and +4mm length margin
             stock_id = round(contour.x_min * 2.0 - 4.0, 1) if (contour.is_closed and contour.x_min > 5.0) else 0.0
             self.project.stock = Stock(
