@@ -7,6 +7,7 @@ from PySide6.QtGui import QAction, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDialog,
     QFileDialog,
     QLabel,
     QMainWindow,
@@ -19,6 +20,7 @@ from lathecam.cad.dxf_importer import DXFImporter
 from lathecam.cad.step_importer import STEPImporter
 from lathecam.models.project import LatheProject, OperationNode, OperationType
 from lathecam.models.stock import Stock
+from lathecam.ui.dialogs.tool_library_dialog import ToolLibraryDialog
 from lathecam.ui.docks.gcode_dock import GCodePreviewDock
 from lathecam.ui.docks.properties_dock import PropertiesInspectorDock
 from lathecam.ui.docks.tools_dock import ToolTurretDock
@@ -115,6 +117,13 @@ class LatheCAMMainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
+        self.act_tool_library = QAction(tr("toolbar.tool_library"), self)
+        self.act_tool_library.setToolTip("Open ISO Insert & Lathe Tool Library Editor")
+        self.act_tool_library.triggered.connect(lambda: self.action_open_tool_library(None))
+        toolbar.addAction(self.act_tool_library)
+
+        toolbar.addSeparator()
+
         # Theme Toggle Action (Dark <-> White)
         self.act_theme = QAction(
             tr("toolbar.theme_light") if get_current_theme() == "dark" else tr("toolbar.theme_dark"),
@@ -170,6 +179,7 @@ class LatheCAMMainWindow(QMainWindow):
         self.tree_dock.node_selected.connect(self._on_tree_node_selected)
         self.tree_dock.operations_changed.connect(self._on_project_modified)
         self.tree_dock.assign_op_to_face_requested.connect(self.action_assign_operation_to_face)
+        self.tools_dock.tool_library_requested.connect(self.action_open_tool_library)
         self.props_dock.parameters_changed.connect(self._on_project_modified)
         self.gcode_dock.export_requested.connect(self.action_export_gcode)
         self.gcode_dock.dialect_changed.connect(self._on_dialect_changed)
@@ -237,6 +247,7 @@ class LatheCAMMainWindow(QMainWindow):
         self.act_add_part.setText(tr("toolbar.add_part"))
         self.act_export.setText(tr("toolbar.post_gcode"))
         self.act_simulate.setText(tr("toolbar.simulate"))
+        self.act_tool_library.setText(tr("toolbar.tool_library"))
         self.act_theme.setText(
             tr("toolbar.theme_light") if get_current_theme() == "dark" else tr("toolbar.theme_dark")
         )
@@ -372,6 +383,14 @@ class LatheCAMMainWindow(QMainWindow):
             self.statusBar().showMessage(tr("status.project_saved", path=filepath))
         except Exception as exc:
             QMessageBox.critical(self, "Project Save Error", f"Failed to save {filepath}:\n{exc}")
+
+    def action_open_tool_library(self, initial_tool_id: int | None = None) -> None:
+        """Opens the full ISO Insert & Lathe Tool Library Editor dialog."""
+        dlg = ToolLibraryDialog(project=self.project, parent=self, initial_tool_id=initial_tool_id)
+        dlg.tools_updated.connect(self._on_project_modified)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._on_project_modified()
+            self._sync_all_views()
 
     def action_import_cad(self) -> None:
         filepath, _ = QFileDialog.getOpenFileName(

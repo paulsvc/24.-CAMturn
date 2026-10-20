@@ -21,6 +21,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "toolbar.theme_dark": "🌙 Dark Theme",
         "toolbar.theme_light": "☀️ White Theme",
         "toolbar.simulate": "▶ Simulate Toolpath",
+        "toolbar.tool_library": "🛠 Tool Library",
         "toolbar.lang_label": "🌐",
 
         # Status Bar
@@ -94,14 +95,33 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "face.act_part": "➕ Groove / Part at Shoulder",
         "face.act_clear": "✕ Clear Face Selection",
 
-        # Tool Turret Dock
+        # Tool Turret Dock & Library Editor
         "tools.dock_title": "Tool Turret Library (ISO)",
         "tools.col_pocket": "Pocket",
         "tools.col_desc": "Description",
         "tools.col_shape": "Shape",
         "tools.col_nose_r": "Nose R",
+        "tools.col_ic": "IC (mm)",
         "tools.col_angles": "Clearance / Lead",
         "tools.col_orient": "Orient (Q)",
+        "tools.lib_title": "Tool Turret & ISO Insert Library Editor",
+        "tools.btn_edit_lib": "🛠 Tool Library Editor",
+        "tools.turret_header": "Turret Pockets & Library",
+        "tools.btn_add_tool": "➕ Add Tool",
+        "tools.btn_duplicate": "📋 Duplicate",
+        "tools.btn_delete_tool": "✕ Delete",
+        "tools.btn_reset_defaults": "↺ Defaults",
+        "tools.group_dimensions": "ISO Insert Geometry & Dimensions",
+        "tools.iso_preset": "ISO Standard Preset:",
+        "tools.pocket_name": "Pocket & Name:",
+        "tools.shape_hand": "ISO Shape & Hand:",
+        "tools.dimensions": "Dimensions (IC, s, rε):",
+        "tools.cut_limits": "Edge & Cutting Limits:",
+        "tools.angles_orient": "Angles & Orient (Q):",
+        "tools.import_lib": "📁 Import Library (.json)",
+        "tools.export_lib": "💾 Export Library (.json)",
+        "common.cancel": "Cancel",
+        "common.apply_and_close": "Apply to Project",
 
         # G-Code Preview Dock
         "gcode.dock_title": "G-Code Post-Processor Output",
@@ -153,6 +173,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "toolbar.theme_dark": "🌙 Thème Sombre",
         "toolbar.theme_light": "☀️ Thème Clair",
         "toolbar.simulate": "▶ Simuler Parcours",
+        "toolbar.tool_library": "🛠 Bibliothèque d'Outils",
         "toolbar.lang_label": "🌐",
 
         # Status Bar
@@ -226,14 +247,33 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "face.act_part": "➕ Gorge / Tronçonner ici",
         "face.act_clear": "✕ Désélectionner la Face",
 
-        # Tool Turret Dock
+        # Tool Turret Dock & Library Editor
         "tools.dock_title": "Bibliothèque d'Outils Tourelle (ISO)",
         "tools.col_pocket": "Poste",
         "tools.col_desc": "Désignation",
         "tools.col_shape": "Plaquette",
         "tools.col_nose_r": "Rayon R",
+        "tools.col_ic": "IC (mm)",
         "tools.col_angles": "Dépouille / Dir.",
         "tools.col_orient": "Orient. (Q)",
+        "tools.lib_title": "Éditeur de Bibliothèque d'Outils & Plaquettes ISO",
+        "tools.btn_edit_lib": "🛠 Éditeur de Bibliothèque",
+        "tools.turret_header": "Tourelle & Bibliothèque d'Outils",
+        "tools.btn_add_tool": "➕ Ajouter Outil",
+        "tools.btn_duplicate": "📋 Dupliquer",
+        "tools.btn_delete_tool": "✕ Supprimer",
+        "tools.btn_reset_defaults": "↺ Défauts",
+        "tools.group_dimensions": "Géométrie & Dimensions de Plaquette ISO",
+        "tools.iso_preset": "Préréglage Standard ISO :",
+        "tools.pocket_name": "Numéro & Nom :",
+        "tools.shape_hand": "Forme ISO & Sens :",
+        "tools.dimensions": "Dimensions (IC, s, rε) :",
+        "tools.cut_limits": "Arête & Limites de Coupe :",
+        "tools.angles_orient": "Angles & Orientation (Q) :",
+        "tools.import_lib": "📁 Importer Bibliothèque (.json)",
+        "tools.export_lib": "💾 Exporter Bibliothèque (.json)",
+        "common.cancel": "Annuler",
+        "common.apply_and_close": "Appliquer au Projet",
 
         # G-Code Preview Dock
         "gcode.dock_title": "Sortie G-Code Post-Processeur",

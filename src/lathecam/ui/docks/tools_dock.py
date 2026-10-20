@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QBrush
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QDockWidget,
+    QHBoxLayout,
     QHeaderView,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -18,6 +20,8 @@ from lathecam.ui.theme import get_current_theme
 
 class ToolTurretDock(QDockWidget):
     """Displays the Tool Table & Turret Library (ISO Insert Geometry, Nose Radius, Orientation 1-9)."""
+
+    tool_library_requested = Signal(object)  # Emits tool_id (int | None)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(tr("tools.dock_title"), parent)
@@ -33,6 +37,16 @@ class ToolTurretDock(QDockWidget):
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(6)
+
+        # Action header bar
+        top_bar = QHBoxLayout()
+        top_bar.setContentsMargins(0, 0, 0, 0)
+        self.btn_open_library = QPushButton(tr("tools.btn_edit_lib", default="🛠 Tool Library Editor"))
+        self.btn_open_library.clicked.connect(self._on_open_library_clicked)
+        top_bar.addWidget(self.btn_open_library)
+        top_bar.addStretch()
+        layout.addLayout(top_bar)
 
         self.table = QTableWidget(0, 6)
         self._update_headers()
@@ -40,6 +54,8 @@ class ToolTurretDock(QDockWidget):
         self.table.setAlternatingRowColors(True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.cellDoubleClicked.connect(self._on_cell_double_clicked)
+
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -60,6 +76,7 @@ class ToolTurretDock(QDockWidget):
             tr("tools.col_angles"),
             tr("tools.col_orient"),
         ])
+        self.btn_open_library.setText(tr("tools.btn_edit_lib", default="🛠 Tool Library Editor"))
 
     def retranslate_ui(self) -> None:
         self.setWindowTitle(tr("tools.dock_title"))
@@ -75,6 +92,7 @@ class ToolTurretDock(QDockWidget):
 
         for row, tool in enumerate(tools):
             t_item = QTableWidgetItem(f"T{tool.tool_id}")
+            t_item.setData(Qt.ItemDataRole.UserRole, tool.tool_id)
             t_item.setForeground(QBrush(QColor("#0284c7" if is_light else "#38bdf8")))
             self.table.setItem(row, 0, t_item)
 
@@ -89,3 +107,17 @@ class ToolTurretDock(QDockWidget):
             q_item = QTableWidgetItem(f"Q{tool.orientation.value}")
             q_item.setForeground(QBrush(QColor("#d97706" if is_light else "#f59e0b")))
             self.table.setItem(row, 5, q_item)
+
+    def _on_open_library_clicked(self) -> None:
+        selected_tool_id: int | None = None
+        rows = self.table.selectionModel().selectedRows()
+        if rows:
+            item = self.table.item(rows[0].row(), 0)
+            if item:
+                selected_tool_id = item.data(Qt.ItemDataRole.UserRole)
+        self.tool_library_requested.emit(selected_tool_id)
+
+    def _on_cell_double_clicked(self, row: int, column: int) -> None:
+        item = self.table.item(row, 0)
+        tool_id = item.data(Qt.ItemDataRole.UserRole) if item else None
+        self.tool_library_requested.emit(tool_id)

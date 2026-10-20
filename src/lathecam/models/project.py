@@ -473,6 +473,7 @@ class LatheProject:
                 "z_start_mm": self.stock.z_start_mm,
                 "z_end_mm": self.stock.z_end_mm,
             },
+            "tools": [t.to_dict() for t in self.tools.values()],
             "contour_points": [[z, x] for z, x in self.contour.points],
             "operations": [
                 {
@@ -556,10 +557,19 @@ class LatheProject:
                 )
             )
 
+        tools_dict: dict[int, LatheTool] = {}
+        for td in data.get("tools", []):
+            try:
+                t = LatheTool.from_dict(td)
+                tools_dict[t.tool_id] = t
+            except Exception:
+                pass
+
         proj = cls(
             name=str(data.get("name", path.stem)),
             stock=stock,
             contour=contour,
+            tools=tools_dict if tools_dict else cls.default_tool_turret(),
             operations=ops,
             is_diameter_mode=bool(data.get("is_diameter_mode", True)),
             post_dialect=str(data.get("post_dialect", "linuxcnc")),

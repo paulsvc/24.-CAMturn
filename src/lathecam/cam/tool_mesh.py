@@ -64,9 +64,13 @@ def build_tool_3d_meshes(tool: LatheTool | None) -> tuple[pv.PolyData, pv.PolyDa
     if tool is None:
         shape = "C"
         tip_w = 3.0
+        ic = 12.7
+        y_half = 2.38
     else:
         shape = (tool.insert_shape or "C").upper()
         tip_w = max(1.0, tool.tip_width_mm)
+        ic = max(3.0, getattr(tool, "inscribed_circle_mm", 12.7))
+        y_half = max(0.5, getattr(tool, "thickness_mm", 4.76) / 2.0)
 
     if shape == "DRILL":
         # Axial drill: points along -VTK X (into workpiece from front face)
@@ -142,13 +146,14 @@ def build_tool_3d_meshes(tool: LatheTool | None) -> tuple[pv.PolyData, pv.PolyDa
 
     elif shape == "D":
         # DNMG 55-degree diamond finishing insert
+        scale_f = max(0.5, ic / 12.7)
         insert_pts = [
             (0.0, 0.0),
-            (3.0, 10.5),
-            (10.0, 10.5),
-            (7.0, 0.0),
+            (3.0 * scale_f, 10.5 * scale_f),
+            (10.0 * scale_f, 10.5 * scale_f),
+            (7.0 * scale_f, 0.0),
         ]
-        insert_mesh = _make_prism_mesh(insert_pts, y_half=1.75)
+        insert_mesh = _make_prism_mesh(insert_pts, y_half=y_half)
         shank_pts = [
             (2.5, 4.0),
             (2.5, 20.0),
@@ -160,13 +165,110 @@ def build_tool_3d_meshes(tool: LatheTool | None) -> tuple[pv.PolyData, pv.PolyDa
 
     elif shape == "V":
         # VNMG 35-degree diamond profiling insert
+        scale_f = max(0.5, ic / 9.525)
         insert_pts = [
             (0.0, 0.0),
-            (2.2, 12.0),
-            (8.5, 12.0),
-            (6.3, 0.0),
+            (2.2 * scale_f, 12.0 * scale_f),
+            (8.5 * scale_f, 12.0 * scale_f),
+            (6.3 * scale_f, 0.0),
         ]
-        insert_mesh = _make_prism_mesh(insert_pts, y_half=1.75)
+        insert_mesh = _make_prism_mesh(insert_pts, y_half=y_half)
+        shank_pts = [
+            (2.5, 4.0),
+            (2.5, 20.0),
+            (35.0, 20.0),
+            (35.0, 4.0),
+        ]
+        shank_mesh = _make_prism_mesh(shank_pts, y_half=6.0)
+        return insert_mesh, shank_mesh
+
+    elif shape == "W":
+        # WNMG 80-degree trigon insert (3 cutting corners)
+        scale_f = max(0.5, ic / 12.7)
+        insert_pts = [
+            (0.0, 0.0),
+            (3.0 * scale_f, 8.5 * scale_f),
+            (9.0 * scale_f, 11.0 * scale_f),
+            (12.0 * scale_f, 6.0 * scale_f),
+            (7.0 * scale_f, 0.0),
+        ]
+        insert_mesh = _make_prism_mesh(insert_pts, y_half=y_half)
+        shank_pts = [
+            (2.5, 4.0),
+            (2.5, 20.0),
+            (35.0, 20.0),
+            (35.0, 4.0),
+        ]
+        shank_mesh = _make_prism_mesh(shank_pts, y_half=6.0)
+        return insert_mesh, shank_mesh
+
+    elif shape == "T":
+        # TNMG 60-degree equilateral triangular insert
+        scale_f = max(0.5, ic / 9.525)
+        insert_pts = [
+            (0.0, 0.0),
+            (4.5 * scale_f, 10.0 * scale_f),
+            (11.0 * scale_f, 0.0),
+        ]
+        insert_mesh = _make_prism_mesh(insert_pts, y_half=y_half)
+        shank_pts = [
+            (2.5, 4.0),
+            (2.5, 20.0),
+            (35.0, 20.0),
+            (35.0, 4.0),
+        ]
+        shank_mesh = _make_prism_mesh(shank_pts, y_half=6.0)
+        return insert_mesh, shank_mesh
+
+    elif shape == "S":
+        # SNMG 90-degree square insert (4 cutting corners)
+        scale_f = max(0.5, ic / 12.7)
+        insert_pts = [
+            (0.0, 0.0),
+            (2.5 * scale_f, 9.5 * scale_f),
+            (12.0 * scale_f, 9.5 * scale_f),
+            (9.5 * scale_f, 0.0),
+        ]
+        insert_mesh = _make_prism_mesh(insert_pts, y_half=y_half)
+        shank_pts = [
+            (2.5, 4.0),
+            (2.5, 20.0),
+            (35.0, 20.0),
+            (35.0, 4.0),
+        ]
+        shank_mesh = _make_prism_mesh(shank_pts, y_half=6.0)
+        return insert_mesh, shank_mesh
+
+    elif shape == "R":
+        # Round insert: circular disk with contact tip at (0, 0)
+        radius = max(2.0, ic / 2.0)
+        insert_mesh = pv.Cylinder(
+            center=(radius, 0.0, radius),
+            direction=(0.0, 1.0, 0.0),
+            radius=radius,
+            height=tool.thickness_mm if tool else 4.76,
+            resolution=36,
+        ).triangulate().clean()
+        insert_mesh.compute_normals(inplace=True)
+        shank_pts = [
+            (2.5, 4.0),
+            (2.5, 20.0),
+            (35.0, 20.0),
+            (35.0, 4.0),
+        ]
+        shank_mesh = _make_prism_mesh(shank_pts, y_half=6.0)
+        return insert_mesh, shank_mesh
+
+    elif shape == "K":
+        # KNUX 55-degree parallelogram insert
+        scale_f = max(0.5, ic / 9.525)
+        insert_pts = [
+            (0.0, 0.0),
+            (3.0 * scale_f, 9.0 * scale_f),
+            (13.0 * scale_f, 9.0 * scale_f),
+            (10.0 * scale_f, 0.0),
+        ]
+        insert_mesh = _make_prism_mesh(insert_pts, y_half=y_half)
         shank_pts = [
             (2.5, 4.0),
             (2.5, 20.0),
@@ -177,14 +279,15 @@ def build_tool_3d_meshes(tool: LatheTool | None) -> tuple[pv.PolyData, pv.PolyDa
         return insert_mesh, shank_mesh
 
     else:
-        # Default: CNMG / WNMG 80-degree diamond turning insert
+        # Default / "C": CNMG 80-degree diamond turning insert
+        scale_f = max(0.5, ic / 12.7)
         insert_pts = [
             (0.0, 0.0),
-            (4.0, 9.0),
-            (12.0, 9.0),
-            (8.0, 0.0),
+            (4.0 * scale_f, 9.0 * scale_f),
+            (12.0 * scale_f, 9.0 * scale_f),
+            (8.0 * scale_f, 0.0),
         ]
-        insert_mesh = _make_prism_mesh(insert_pts, y_half=1.75)
+        insert_mesh = _make_prism_mesh(insert_pts, y_half=y_half)
         shank_pts = [
             (2.5, 4.0),
             (2.5, 20.0),
