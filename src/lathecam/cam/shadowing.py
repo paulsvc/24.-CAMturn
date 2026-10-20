@@ -23,6 +23,13 @@ def profile_to_polygon(
         raise ValueError("Profile must have at least 2 points")
 
     pts = list(profile_pts)
+    # If the profile is already a closed loop (e.g. hollow tube cross-section)
+    if len(pts) >= 4 and math.hypot(pts[0][0] - pts[-1][0], pts[0][1] - pts[-1][1]) < 1e-4:
+        poly = shapely.geometry.Polygon(pts)
+        if not poly.is_valid:
+            poly = shapely.ops.unary_union(poly)
+        return poly
+
     # Ensure points are ordered from front (max Z) to rear (min Z)
     if pts[0][0] < pts[-1][0]:
         pts.reverse()

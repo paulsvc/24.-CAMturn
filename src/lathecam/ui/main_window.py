@@ -390,10 +390,12 @@ class LatheCAMMainWindow(QMainWindow):
             self.project.name = path.stem
             self.project.contour = contour
             # Automatically size stock with +4mm OD margin and +4mm length margin
+            stock_id = round(contour.x_min * 2.0 - 4.0, 1) if (contour.is_closed and contour.x_min > 5.0) else 0.0
             self.project.stock = Stock(
                 od_mm=round(contour.x_max * 2.0 + 4.0, 1),
                 z_start_mm=2.0,
                 z_end_mm=round(contour.z_min - 4.0, 1),
+                id_mm=max(0.0, stock_id),
             )
             self._on_project_modified()
             self._sync_all_views()

@@ -4,11 +4,12 @@ from pathlib import Path
 import pytest
 
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder
-from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse, BRepAlgoAPI_Cut
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.gp import gp_Trsf, gp_Vec
 from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs
 
+from lathecam.cad.face import FaceType, decompose_contour_into_faces
 from lathecam.cad.step_importer import STEPImporter
 from lathecam.cam.roughing import generate_roughing_toolpath
 from lathecam.cam.shadowing import compute_shadowed_polygon
@@ -99,3 +100,50 @@ def test_step_to_cam_roughing_pipeline(tmp_path: Path) -> None:
     )
     assert len(rough_cmds) > 0
     assert any(c.mode == "G1" for c in rough_cmds)
+
+
+def test_step_hollow_cylinder_slicing(tmp_path: Path) -> None:
+    # Outer cylinder R=25.0mm, Length=60.0mm; Inner bore R=15.0mm (Through-hole)
+    outer = BRepPrimAPI_MakeCylinder(25.0, 60.0).Shape()
+    inner = BRepPrimAPI_MakeCylinder(15.0, 60.0).Shape()
+    tube = BRepAlgoAPI_Cut(outer, inner).Shape()
+
+    step_file = _save_shape_as_step(tube, tmp_path / "tube.step")
+    importer = STEPImporter()
+    contour = importer.extract_contour(step_file, spindle_axis="z")
+
+    assert contour is not None
+    assert contour.is_closed
+    assert pytest.approx(contour.z_max, abs=1e-3) == 0.0
+    assert pytest.approx(contour.z_min, abs=0.1) == -60.0
+    # Hole radius should be preserved as x_min, OD as x_max
+    assert pytest.approx(contour.x_min, abs=0.1) == 15.0
+    assert pytest.approx(contour.x_max, abs=0.1) == 25.0
+
+    # Verify face decomposition identifies OD cylinder, ID bore, and end faces
+    faces = decompose_contour_into_faces(contour)
+    assert len(faces) == 4
+    face_types = [f.face_type for f in faces]
+    assert FaceType.CYLINDER in face_types or FaceType.GROOVE in face_types
+    assert FaceType.SHOULDER in face_types
+
+
+def test_step_part1_workspace_file() -> None:
+    part1_path = Path("step/Part1.STEP")
+    if not part1_path.is_file():
+        pytest.skip("step/Part1.STEP not found in workspace")
+
+    importer = STEPImporter()
+    contour = importer.extract_contour(part1_path, spindle_axis="auto")
+
+    assert contour is not None
+    assert contour.is_closed
+    assert pytest.approx(contour.z_max, abs=1e-3) == 0.0
+    assert pytest.approx(contour.z_min, abs=0.5) == -100.0
+    # Hole radius ~41.42mm, OD radius ~71.89mm
+    assert pytest.approx(contour.x_min, abs=0.5) == 41.42
+    assert pytest.approx(contour.x_max, abs=0.5) == 71.89
+
+    faces = decompose_contour_into_faces(contour)
+    assert len(faces) == 4
+

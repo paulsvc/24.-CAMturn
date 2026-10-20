@@ -80,6 +80,12 @@ class Contour:
 
     def to_shapely_polygon(self, z_min_bound: float | None = None) -> shapely.geometry.Polygon:
         """Converts contour into a closed polygon bounded by X=0 (the spindle centerline)."""
+        if self.is_closed:
+            poly = shapely.geometry.Polygon(self.points)
+            if not poly.is_valid:
+                poly = shapely.ops.unary_union(poly)
+            return poly
+
         pts = self.orient_front_to_rear().points
         first_z, first_x = pts[0]
         last_z, last_x = pts[-1]

@@ -164,6 +164,28 @@ class STEPImporter:
         if not chains:
             raise ValueError("Failed to chain section edges into continuous wire contours")
 
-        # Extract upper silhouette, re-zero front face (max Z = 0.0), and orient front-to-rear
+        # Check if there is an upper-half closed wire representing a hollow part with a central hole / ID bore
+        hollow_candidate: list[Point2D] | None = None
+        for ch in chains:
+            is_closed = math.hypot(ch[0][0] - ch[-1][0], ch[0][1] - ch[-1][1]) < 0.05
+            if not is_closed:
+                continue
+            if all(p[1] > 0.05 for p in ch):
+                hollow_candidate = ch
+                break
+            elif all(p[1] < -0.05 for p in ch):
+                hollow_candidate = [(p[0], abs(p[1])) for p in ch]
+                break
+
+        if hollow_candidate is not None:
+            max_z = max(p[0] for p in hollow_candidate)
+            shifted = [(p[0] - max_z, p[1]) for p in hollow_candidate]
+            ring = shifted[:-1] if math.hypot(shifted[0][0] - shifted[-1][0], shifted[0][1] - shifted[-1][1]) < 1e-4 else shifted
+            best_idx = max(range(len(ring)), key=lambda i: (ring[i][0], ring[i][1]))
+            rotated = ring[best_idx:] + ring[:best_idx]
+            rotated.append(rotated[0])
+            return Contour(rotated)
+
+        # For solid turned parts: extract upper silhouette, re-zero front face (max Z = 0.0), and orient front-to-rear
         contour = extract_upper_silhouette(chains, sample_step_mm=0.25)
         return contour

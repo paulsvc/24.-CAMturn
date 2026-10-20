@@ -40,13 +40,17 @@ def build_revolved_mesh(
     - VTK Z = Lathe X_radius * cos(theta) (so theta=0 is the vertical +Z plane)
     """
     pts = list(profile_pts)
-    if pts[0][0] < pts[-1][0]:
+    is_closed = math.hypot(pts[0][0] - pts[-1][0], pts[0][1] - pts[-1][1]) < 1e-3
+    if not is_closed and pts[0][0] < pts[-1][0]:
         pts.reverse()
 
-    if close_to_centerline:
-        closed_pts: list[Point2D] = [(pts[0][0], 0.0)]
+    if close_to_centerline and not is_closed:
+        closed_pts: list[Point2D] = []
+        if abs(pts[0][1]) > 1e-4:
+            closed_pts.append((pts[0][0], 0.0))
         closed_pts.extend(pts)
-        closed_pts.append((pts[-1][0], 0.0))
+        if abs(pts[-1][1]) > 1e-4:
+            closed_pts.append((pts[-1][0], 0.0))
     else:
         closed_pts = pts
 
@@ -398,8 +402,11 @@ class VTKLatheViewport(BaseViewportCanvas):
 
         # 3. Render 2D Upper-Half Meridian Part Profile & Stock Wireframe on Y=0 Plane
         profile_3d = [(z, 0.0, x) for z, x in contour_pts]
-        profile_3d_closed = [(contour_pts[0][0], 0.0, 0.0)] + profile_3d + [(contour_pts[-1][0], 0.0, 0.0)]
-        prof_line = build_polyline_polydata(profile_3d_closed)
+        if self._project.contour.is_closed:
+            prof_line = build_polyline_polydata(profile_3d)
+        else:
+            profile_3d_closed = [(contour_pts[0][0], 0.0, 0.0)] + profile_3d + [(contour_pts[-1][0], 0.0, 0.0)]
+            prof_line = build_polyline_polydata(profile_3d_closed)
         if prof_line is not None:
             self.plotter.add_mesh(prof_line, color=colors["profile_line"], line_width=3.0)
 

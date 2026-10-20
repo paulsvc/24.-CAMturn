@@ -51,6 +51,12 @@ class PropertiesInspectorDock(QDockWidget):
         self.spin_stock_od.setDecimals(2)
         self.spin_stock_od.valueChanged.connect(self._on_stock_edited)
 
+        self.spin_stock_id = QDoubleSpinBox()
+        self.spin_stock_id.setRange(0.0, 500.0)
+        self.spin_stock_id.setSuffix(" mm")
+        self.spin_stock_id.setDecimals(2)
+        self.spin_stock_id.valueChanged.connect(self._on_stock_edited)
+
         self.spin_stock_z_start = QDoubleSpinBox()
         self.spin_stock_z_start.setRange(0.0, 50.0)
         self.spin_stock_z_start.setSuffix(" mm")
@@ -64,10 +70,12 @@ class PropertiesInspectorDock(QDockWidget):
         self.spin_stock_z_end.valueChanged.connect(self._on_stock_edited)
 
         self.lbl_stock_od = QLabel(tr("props.stock_od"))
+        self.lbl_stock_id = QLabel(tr("props.stock_id"))
         self.lbl_stock_z_start = QLabel(tr("props.stock_z_start"))
         self.lbl_stock_z_end = QLabel(tr("props.stock_z_end"))
 
         stock_form.addRow(self.lbl_stock_od, self.spin_stock_od)
+        stock_form.addRow(self.lbl_stock_id, self.spin_stock_id)
         stock_form.addRow(self.lbl_stock_z_start, self.spin_stock_z_start)
         stock_form.addRow(self.lbl_stock_z_end, self.spin_stock_z_end)
         main_layout.addWidget(self.stock_group)
@@ -225,6 +233,7 @@ class PropertiesInspectorDock(QDockWidget):
         self.setWindowTitle(tr("props.dock_title"))
         self.stock_group.setTitle(tr("props.stock_group"))
         self.lbl_stock_od.setText(tr("props.stock_od"))
+        self.lbl_stock_id.setText(tr("props.stock_id"))
         self.lbl_stock_z_start.setText(tr("props.stock_z_start"))
         self.lbl_stock_z_end.setText(tr("props.stock_z_end"))
 
@@ -277,6 +286,7 @@ class PropertiesInspectorDock(QDockWidget):
         self._populate_face_combo()
 
         self.spin_stock_od.setValue(project.stock.od_mm)
+        self.spin_stock_id.setValue(project.stock.id_mm)
         self.spin_stock_z_start.setValue(project.stock.z_start_mm)
         self.spin_stock_z_end.setValue(project.stock.z_end_mm)
 
@@ -403,6 +413,7 @@ class PropertiesInspectorDock(QDockWidget):
         try:
             self._project.stock = Stock(
                 od_mm=self.spin_stock_od.value(),
+                id_mm=self.spin_stock_id.value(),
                 z_start_mm=self.spin_stock_z_start.value(),
                 z_end_mm=self.spin_stock_z_end.value(),
             )
