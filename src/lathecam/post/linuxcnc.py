@@ -17,11 +17,14 @@ class LinuxCNCPostProcessor(BasePostProcessor):
     - Tool change: M6 T{tool} G43
     - CSS: G96 D{max_rpm} S{css} M3 (Never Fanuc G50)
     - Constant RPM: G97 S{rpm} M3
-    - Canned cycles: G76 lathe threading and G83 peck drilling.
+    - Canned cycles: G76 lathe threading.
+    - Peck drilling: Unrolled to explicit G0/G1 pecks by default because 2-axis lathes
+      in G18 do not have a Y-axis (LinuxCNC G18 canned cycles treat Y as the depth axis).
     """
 
-    def __init__(self, is_diameter_mode: bool = True) -> None:
+    def __init__(self, is_diameter_mode: bool = True, unroll_canned_cycles: bool = True) -> None:
         super().__init__(is_diameter_mode=is_diameter_mode)
+        self.unroll_canned_cycles = unroll_canned_cycles
 
     def _fmt(self, val: float) -> str:
         """Formats a float to 3 decimal places without unnecessary trailing zero noise."""
@@ -196,19 +199,49 @@ class LinuxCNCPostProcessor(BasePostProcessor):
                 continue
 
             if cmd.mode in ("G83", "G73"):
-                # Canned drilling cycle
-                p = cmd.raw_params or {}
-                z_depth = cmd.z if cmd.z is not None else -10.0
-                r_plane = p.get("r_plane", 1.0)
-                q_peck = p.get("peck_q", 2.0)
-                feed = cmd.f if cmd.f is not None else 0.12
+                if self.unroll_canned_cycles:
+                    # LinuxCNC 2-axis lathe operates in G18 (XZ plane) without a Y axis.
+                    # In LinuxCNC, G18 canned cycles (G81-G89) treat Y as the depth axis,
+                    # which fails with: "G18 canned cycle is not possible on a machine without Y axis".
+                    # We unroll peck drilling into robust, universal G0/G1 chip-clearing peck passes.
+                    p = cmd.raw_params or {}
+                    z_depth = float(cmd.z if cmd.z is not None else -10.0)
+                    r_plane = float(p.get("r_plane", 1.0))
+                    q_peck = float(p.get("peck_q", 2.0))
+                    feed = float(cmd.f if cmd.f is not None else 0.12)
 
-                line = f"{cmd.mode} X0.000 Z{self._fmt(z_depth)} R{self._fmt(r_plane)} Q{self._fmt(q_peck)} F{self._fmt(feed)}"
-                lines.append(line)
-                continue
+                    lines.append(f"(Axial Peck Drilling [G0/G1]: Depth={self._fmt(z_depth)}mm, Peck={self._fmt(q_peck)}mm)")
+                    lines.append(f"G0 X0.000 Z{self._fmt(r_plane)}")
+
+                    curr_z = 0.0
+                    peck = max(0.5, abs(q_peck))
+                    while curr_z > z_depth + 1e-4:
+                        next_z = max(z_depth, curr_z - peck)
+                        lines.append(f"G1 Z{self._fmt(next_z)} F{self._fmt(feed)}")
+                        lines.append(f"G0 Z{self._fmt(r_plane)}")
+                        if next_z > z_depth + 1e-4:
+                            lines.append(f"G0 Z{self._fmt(next_z + 0.5)}")
+                        curr_z = next_z
+
+                    lines.append(f"G0 Z{self._fmt(r_plane + 5.0)}")
+                    curr_x_rad = 0.0
+                    curr_z = r_plane + 5.0
+                    last_mode = "G0"
+                    continue
+                else:
+                    p = cmd.raw_params or {}
+                    z_depth = cmd.z if cmd.z is not None else -10.0
+                    r_plane = p.get("r_plane", 1.0)
+                    q_peck = p.get("peck_q", 2.0)
+                    feed = cmd.f if cmd.f is not None else 0.12
+
+                    line = f"{cmd.mode} X0.000 Z{self._fmt(z_depth)} R{self._fmt(r_plane)} Q{self._fmt(q_peck)} F{self._fmt(feed)}"
+                    lines.append(line)
+                    continue
 
             if cmd.mode == "G80":
-                lines.append("G80")
+                if not self.unroll_canned_cycles:
+                    lines.append("G80")
                 continue
 
             if cmd.mode == "G33":

@@ -72,7 +72,7 @@ def test_g8_radius_mode() -> None:
 
 
 def test_linuxcnc_canned_cycles() -> None:
-    post = LinuxCNCPostProcessor(is_diameter_mode=True)
+    post = LinuxCNCPostProcessor(is_diameter_mode=True, unroll_canned_cycles=False)
     cmds = [
         # G76 Threading block
         MotionCmd(
@@ -118,13 +118,40 @@ def test_linuxcnc_canned_cycles() -> None:
     assert "Q29.500" in g76_line
     assert "H2" in g76_line
 
-    # Assert G83 line
+    # Assert G83 line when unroll_canned_cycles=False
     g83_line = [l for l in gcode.splitlines() if l.startswith("G83")][0]
     assert "X0.000" in g83_line
     assert "Z-35.000" in g83_line
     assert "R1.000" in g83_line
     assert "Q3.000" in g83_line
     assert "F0.120" in g83_line
+
+
+def test_linuxcnc_unrolled_peck_drilling() -> None:
+    """Verifies default LinuxCNC 2-axis lathe drilling unrolls G83 into explicit G0/G1 pecks
+    to prevent 'G18 canned cycle is not possible on a machine without Y axis'.
+    """
+    post = LinuxCNCPostProcessor(is_diameter_mode=True, unroll_canned_cycles=True)
+    cmds = [
+        MotionCmd(
+            mode="G83",
+            x=0.0,
+            z=-12.0,
+            f=0.12,
+            raw_params={"r_plane": 1.0, "peck_q": 4.0},
+        ),
+        MotionCmd(mode="G80"),
+    ]
+    gcode = post.export(cmds)
+    motion_lines = gcode.splitlines()[3:]  # Skip preamble which initializes modal state
+    assert not any(l.startswith("G83") for l in motion_lines)
+    assert not any(l.strip() == "G80" for l in motion_lines)
+    assert "G1 Z-4.000 F0.120" in gcode
+    assert "G0 Z1.000" in gcode
+    assert "G0 Z-3.500" in gcode
+    assert "G1 Z-8.000 F0.120" in gcode
+    assert "G1 Z-12.000 F0.120" in gcode
+
 
 
 def test_fanuc_post_processor() -> None:

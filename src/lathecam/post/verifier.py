@@ -275,8 +275,16 @@ def verify_gcode(
         if target_z is not None:
             all_z.append(target_z)
 
-        # Canned cycles (G76, G83, G74)
-        if mode in ("G76", "G83", "G74"):
+        # Canned cycles (G76, G83, G74, G81-G89)
+        if mode in ("G76", "G83", "G74", "G81", "G82", "G84", "G85", "G86", "G87", "G88", "G89"):
+            if mode in ("G81", "G82", "G83", "G84", "G85", "G86", "G87", "G88", "G89") and active_plane == "G18":
+                issues.append(GCodeIssue(
+                    line_number=idx,
+                    code="G18_CANNED_CYCLE_NO_Y",
+                    severity="ERROR",
+                    message="G18 canned cycle is not possible on a machine without Y axis; LinuxCNC canned cycles in G18 feed along the normal Y axis. Use unrolled G0/G1 peck drilling.",
+                    raw_line=stripped,
+                ))
             if "Z" not in words:
                 continue
             cycle_count += 1
