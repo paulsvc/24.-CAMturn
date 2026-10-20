@@ -107,9 +107,19 @@
 
 ## Démarrage Rapide
 
+### Versions Python Compatibles
+LatheCAM est entièrement compatible et testé sur **Python 3.10, 3.11, 3.12 et 3.13**.
+
 ### Installation des Dépendances
+
+**Option A — Installation Complète (Recommandée, inclut l'importation STEP 3D via OpenCASCADE) :**
 ```bash
 pip install -r requirements.txt
+```
+
+**Option B — Installation Légère / Cœur (Sans le binaire lourd OpenCASCADE de ~100 Mo+ ; inclut l'import CAO DXF 2D, le moteur FAO complet, la vue 3D VTK, l'éditeur d'outils et le post-processeur) :**
+```bash
+pip install -r requirements-core.txt
 ```
 
 ### Lancement de l'Application

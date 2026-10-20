@@ -340,88 +340,87 @@ class LatheProject:
                 z_e = op.bound_z_end_mm if use_face_bounds else None
                 target_face = self.get_face_by_id(op.assigned_face_id) if use_face_bounds else None
 
-                match op.op_type:
-                    case OperationType.FACING:
-                        face_target_z = z_e if z_e is not None else 0.0
-                        f_op = FacingOp(
-                            stock=self.stock,
-                            tool=tool,
-                            target_z_mm=face_target_z,
-                            stepover_z_mm=op.stepover_z_mm,
-                            feed_mm_rev=op.feed_mm_rev,
-                        )
-                        op_cmds = f_op.generate()
-                        op.commands = header_cmds + op_cmds
-                        op.preview_commands = list(op.commands)
-                        effective_z_start = min(effective_z_start, face_target_z)
+                if op.op_type == OperationType.FACING:
+                    face_target_z = z_e if z_e is not None else 0.0
+                    f_op = FacingOp(
+                        stock=self.stock,
+                        tool=tool,
+                        target_z_mm=face_target_z,
+                        stepover_z_mm=op.stepover_z_mm,
+                        feed_mm_rev=op.feed_mm_rev,
+                    )
+                    op_cmds = f_op.generate()
+                    op.commands = header_cmds + op_cmds
+                    op.preview_commands = list(op.commands)
+                    effective_z_start = min(effective_z_start, face_target_z)
 
-                    case OperationType.ROUGHING:
-                        rough_stock = Stock(
-                            od_mm=self.stock.od_mm,
-                            z_start_mm=effective_z_start,
-                            z_end_mm=self.stock.z_end_mm,
-                            id_mm=self.stock.id_mm,
-                        )
-                        op_cmds = generate_roughing_toolpath(
-                            profile_pts=self.contour.points,
-                            stock=rough_stock,
-                            tool=tool,
-                            doc_mm=op.doc_mm,
-                            feed_mm_rev=op.feed_mm_rev,
-                            finish_allowance_mm=op.finish_allowance_mm,
-                            retract_mm=op.retract_mm,
-                            z_start=z_s,
-                            z_end=z_e,
-                        )
-                        op.commands = header_cmds + op_cmds
-                        op.preview_commands = list(op.commands)
+                elif op.op_type == OperationType.ROUGHING:
+                    rough_stock = Stock(
+                        od_mm=self.stock.od_mm,
+                        z_start_mm=effective_z_start,
+                        z_end_mm=self.stock.z_end_mm,
+                        id_mm=self.stock.id_mm,
+                    )
+                    op_cmds = generate_roughing_toolpath(
+                        profile_pts=self.contour.points,
+                        stock=rough_stock,
+                        tool=tool,
+                        doc_mm=op.doc_mm,
+                        feed_mm_rev=op.feed_mm_rev,
+                        finish_allowance_mm=op.finish_allowance_mm,
+                        retract_mm=op.retract_mm,
+                        z_start=z_s,
+                        z_end=z_e,
+                    )
+                    op.commands = header_cmds + op_cmds
+                    op.preview_commands = list(op.commands)
 
-                    case OperationType.FINISHING:
-                        op_cmds = generate_finishing_toolpath(
-                            profile_pts=self.contour.points,
-                            stock=self.stock,
-                            tool=tool,
-                            comp_mode=op.comp_mode,
-                            feed_mm_rev=op.feed_mm_rev,
-                            retract_mm=op.retract_mm,
-                            z_start=z_s,
-                            z_end=z_e,
-                            target_face_pts=target_face.points if target_face is not None else None,
-                        )
-                        op.commands = header_cmds + op_cmds
-                        op.preview_commands = list(op.commands)
+                elif op.op_type == OperationType.FINISHING:
+                    op_cmds = generate_finishing_toolpath(
+                        profile_pts=self.contour.points,
+                        stock=self.stock,
+                        tool=tool,
+                        comp_mode=op.comp_mode,
+                        feed_mm_rev=op.feed_mm_rev,
+                        retract_mm=op.retract_mm,
+                        z_start=z_s,
+                        z_end=z_e,
+                        target_face_pts=target_face.points if target_face is not None else None,
+                    )
+                    op.commands = header_cmds + op_cmds
+                    op.preview_commands = list(op.commands)
 
-                    case OperationType.THREADING:
-                        t_op = ThreadingOp(
-                            pitch_mm=op.pitch_mm,
-                            major_dia_mm=op.major_dia_mm,
-                            z_start_mm=op.thread_z_start_mm,
-                            z_end_mm=op.thread_z_end_mm,
-                        )
-                        op.commands = header_cmds + t_op.generate()
-                        op.preview_commands = header_cmds + t_op.generate_unrolled_g33_preview()
+                elif op.op_type == OperationType.THREADING:
+                    t_op = ThreadingOp(
+                        pitch_mm=op.pitch_mm,
+                        major_dia_mm=op.major_dia_mm,
+                        z_start_mm=op.thread_z_start_mm,
+                        z_end_mm=op.thread_z_end_mm,
+                    )
+                    op.commands = header_cmds + t_op.generate()
+                    op.preview_commands = header_cmds + t_op.generate_unrolled_g33_preview()
 
-                    case OperationType.PARTING:
-                        p_op = PartingOp(
-                            stock=self.stock,
-                            tool=tool,
-                            target_z_mm=op.target_z_mm,
-                            target_x_radius_mm=op.target_x_radius_mm,
-                            peck_depth_mm=op.peck_depth_mm,
-                            feed_mm_rev=op.feed_mm_rev,
-                        )
-                        op.commands = header_cmds + p_op.generate()
-                        op.preview_commands = list(op.commands)
+                elif op.op_type == OperationType.PARTING:
+                    p_op = PartingOp(
+                        stock=self.stock,
+                        tool=tool,
+                        target_z_mm=op.target_z_mm,
+                        target_x_radius_mm=op.target_x_radius_mm,
+                        peck_depth_mm=op.peck_depth_mm,
+                        feed_mm_rev=op.feed_mm_rev,
+                    )
+                    op.commands = header_cmds + p_op.generate()
+                    op.preview_commands = list(op.commands)
 
-                    case OperationType.DRILLING:
-                        d_op = DrillingOp(
-                            z_depth_mm=op.target_z_mm,
-                            peck_q_mm=op.peck_depth_mm,
-                            feed_mm_rev=op.feed_mm_rev,
-                            rpm=op.rpm,
-                        )
-                        op.commands = header_cmds + d_op.generate()
-                        op.preview_commands = header_cmds + d_op.generate_unrolled_peck_preview()
+                elif op.op_type == OperationType.DRILLING:
+                    d_op = DrillingOp(
+                        z_depth_mm=op.target_z_mm,
+                        peck_q_mm=op.peck_depth_mm,
+                        feed_mm_rev=op.feed_mm_rev,
+                        rpm=op.rpm,
+                    )
+                    op.commands = header_cmds + d_op.generate()
+                    op.preview_commands = header_cmds + d_op.generate_unrolled_peck_preview()
 
                 dialect = self.post_dialect.lower()
                 if dialect == "ncviewer":

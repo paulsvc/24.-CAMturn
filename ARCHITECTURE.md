@@ -10,7 +10,7 @@
 
 | Layer | Technology | Justification |
 | :--- | :--- | :--- |
-| **Language & Runtime** | Python 3.11+ | Orchestrates native C/C++ geometric backends without performance degradation. |
+| **Language & Runtime** | Python 3.10 – 3.13+ | Orchestrates native C/C++ geometric backends with broad cross-platform compatibility. |
 | **Desktop UI / Docking** | **PySide6 (Qt6)** | Industry-standard CAD GUI toolkit; supports native tabbed and floating `QDockWidget` layouts and hierarchical `QTreeView` models. |
 | **Theme & UI Polish** | `pyqtdarktheme` | Provides a dark slate aesthetic matching modern engineering workbenches. |
 | **B-Rep & STEP Engine** | **OpenCASCADE (`pythonocc-core` / `OCP`)** | Native C++ boundary-representation kernel required to parse STEP files and compute meridian cross-sections ($X-Z$ plane). |

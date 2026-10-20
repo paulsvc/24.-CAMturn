@@ -65,25 +65,18 @@ class LatheTool:
         9: ( 0,  0) [Nose arc center / round insert]
         """
         r = self.nose_radius_mm
-        match self.orientation:
-            case ToolOrientation.QUADRANT_1:
-                return (+r, +r)
-            case ToolOrientation.QUADRANT_2:
-                return (-r, +r)
-            case ToolOrientation.QUADRANT_3:
-                return (-r, -r)
-            case ToolOrientation.QUADRANT_4:
-                return (+r, -r)
-            case ToolOrientation.QUADRANT_5:
-                return (+r, 0.0)
-            case ToolOrientation.QUADRANT_6:
-                return (0.0, +r)
-            case ToolOrientation.QUADRANT_7:
-                return (-r, 0.0)
-            case ToolOrientation.QUADRANT_8:
-                return (0.0, -r)
-            case ToolOrientation.QUADRANT_9:
-                return (0.0, 0.0)
+        offsets = {
+            ToolOrientation.QUADRANT_1: (+r, +r),
+            ToolOrientation.QUADRANT_2: (-r, +r),
+            ToolOrientation.QUADRANT_3: (-r, -r),
+            ToolOrientation.QUADRANT_4: (+r, -r),
+            ToolOrientation.QUADRANT_5: (+r, 0.0),
+            ToolOrientation.QUADRANT_6: (0.0, +r),
+            ToolOrientation.QUADRANT_7: (-r, 0.0),
+            ToolOrientation.QUADRANT_8: (0.0, -r),
+            ToolOrientation.QUADRANT_9: (0.0, 0.0),
+        }
+        return offsets.get(self.orientation, (0.0, 0.0))
 
     def to_dict(self) -> dict[str, Any]:
         """Serializes tool properties to a dictionary."""

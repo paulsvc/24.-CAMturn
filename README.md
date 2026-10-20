@@ -115,9 +115,19 @@
 
 ### Quick Start
 
+#### Supported Python Versions
+LatheCAM is fully compatible and tested on **Python 3.10, 3.11, 3.12, and 3.13**.
+
 #### Install Dependencies
+
+**Option A — Full Installation (Recommended, includes 3D STEP OpenCASCADE import):**
 ```bash
 pip install -r requirements.txt
+```
+
+**Option B — Lightweight Core Installation (No heavy ~100MB+ OpenCASCADE binary; includes full 2D DXF CAD import, CAM kernel, 3D VTK viewport, tool editor, and G-code generation):**
+```bash
+pip install -r requirements-core.txt
 ```
 
 #### Launch Desktop Application
@@ -223,9 +233,19 @@ All generated G-code programs are automatically checked by the built-in **G-Code
 
 ### Démarrage Rapide
 
+#### Versions Python Compatibles
+LatheCAM est entièrement compatible et testé sur **Python 3.10, 3.11, 3.12 et 3.13**.
+
 #### Installation des Dépendances
+
+**Option A — Installation Complète (Recommandée, inclut l'importation STEP 3D via OpenCASCADE) :**
 ```bash
 pip install -r requirements.txt
+```
+
+**Option B — Installation Légère / Cœur (Sans le binaire lourd OpenCASCADE de ~100 Mo+ ; inclut l'import CAO DXF 2D, le moteur FAO complet, la vue 3D VTK, l'éditeur d'outils et le post-processeur) :**
+```bash
+pip install -r requirements-core.txt
 ```
 
 #### Lancement de l'Application
