@@ -160,17 +160,48 @@ def compute_shadowed_polygon(
 
 
 def extract_upper_profile(
-    polygon: shapely.geometry.Polygon | shapely.geometry.MultiPolygon,
+    polygon: shapely.geometry.base.BaseGeometry,
     sample_step_mm: float | None = None,
 ) -> list[Point2D]:
-    """Extracts the exact sequence of (Z, X_radius) vertices along the top silhouette of a polygon."""
-    if polygon.is_empty:
+    """Extracts the exact sequence of (Z, X_radius) vertices along the top silhouette of a polygon or geometry."""
+    if polygon is None or polygon.is_empty:
         return []
+
+    # Handle LineString / MultiLineString directly without requiring .exterior
+    if isinstance(polygon, shapely.geometry.LineString):
+        coords = list(polygon.coords)
+        if len(coords) < 2:
+            return []
+        if coords[0][0] < coords[-1][0]:
+            coords.reverse()
+        return [(float(z), float(x)) for z, x in coords if x > 1e-5]
+
+    if isinstance(polygon, shapely.geometry.MultiLineString):
+        if not polygon.geoms:
+            return []
+        longest = max(polygon.geoms, key=lambda g: g.length)
+        coords = list(longest.coords)
+        if coords[0][0] < coords[-1][0]:
+            coords.reverse()
+        return [(float(z), float(x)) for z, x in coords if x > 1e-5]
+
+    if isinstance(polygon, shapely.geometry.GeometryCollection):
+        polys = [g for g in polygon.geoms if isinstance(g, (shapely.geometry.Polygon, shapely.geometry.MultiPolygon))]
+        if polys:
+            polygon = shapely.ops.unary_union(polys)
+        else:
+            lines = [g for g in polygon.geoms if isinstance(g, (shapely.geometry.LineString, shapely.geometry.MultiLineString))]
+            if lines:
+                longest_line = max(lines, key=lambda g: g.length)
+                return extract_upper_profile(longest_line, sample_step_mm)
+            return []
 
     if isinstance(polygon, shapely.geometry.MultiPolygon):
         poly = max(polygon.geoms, key=lambda g: g.area)
-    else:
+    elif isinstance(polygon, shapely.geometry.Polygon):
         poly = polygon
+    else:
+        return []
 
     oriented = shapely.geometry.polygon.orient(poly, sign=1.0)
     ring = list(oriented.exterior.coords)[:-1]

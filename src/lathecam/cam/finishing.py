@@ -37,8 +37,16 @@ def offset_profile_pyclipper(
     if pts[0][0] < pts[-1][0]:
         pts.reverse()
 
-    z_max, first_x = pts[0]
-    z_min, last_x = pts[-1]
+    z_vals = [p[0] for p in pts]
+    z_min = min(z_vals)
+    z_max = max(z_vals)
+    first_x = pts[0][1]
+    last_x = pts[-1][1]
+
+    # For pure vertical shoulders / faces, offset directly in +Z (and +X) without polygon clipping
+    if (z_max - z_min) < 1e-4:
+        return [(p[0] + offset_mm, p[1] + offset_mm) for p in pts]
+
     pad = max(1.0, abs(offset_mm) * 3.0)
 
     # Build closed polygon coordinates in (Z, X) space with axial runout extensions
@@ -67,7 +75,7 @@ def offset_profile_pyclipper(
         offset_poly = offset_poly.buffer(0)
 
     # Clip polygon strictly to the part's Z span [z_min, z_max] so end-caps are excluded
-    clip_box = shapely.geometry.box(z_min, 0.0, z_max, offset_poly.bounds[3] + 5.0)
+    clip_box = shapely.geometry.box(z_min - 1e-4, 0.0, z_max + 1e-4, offset_poly.bounds[3] + 5.0)
     clipped_poly = offset_poly.intersection(clip_box)
     if clipped_poly.is_empty:
         clipped_poly = offset_poly
@@ -118,8 +126,10 @@ def generate_finishing_toolpath(
     if len(shadowed_pts) < 2:
         return [MotionCmd.comment("Error: Invalid profile geometry for finishing")]
 
-    # Ensure profile runs from front (+Z) to rear (-Z)
+    # Ensure profile runs from front (+Z) to rear (-Z), or outer diameter to inner diameter for vertical shoulders
     if shadowed_pts[0][0] < shadowed_pts[-1][0]:
+        shadowed_pts.reverse()
+    elif abs(shadowed_pts[0][0] - shadowed_pts[-1][0]) < 1e-4 and shadowed_pts[0][1] < shadowed_pts[-1][1]:
         shadowed_pts.reverse()
 
     commands: list[MotionCmd] = []
