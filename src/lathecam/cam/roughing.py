@@ -41,6 +41,18 @@ def generate_roughing_toolpath(
         z_max_bound=stock.z_start_mm,
     )
 
+    # For OD roughing, internal bores/holes below the outer turning silhouette are
+    # machined by drilling/boring, not by external turning tools.
+    if not is_id:
+        from lathecam.cam.shadowing import extract_upper_profile, profile_to_polygon
+        upper_pts = extract_upper_profile(shadowed_poly)
+        if len(upper_pts) >= 2:
+            shadowed_poly = profile_to_polygon(
+                upper_pts,
+                z_min=stock.z_end_mm,
+                z_max=stock.z_start_mm,
+            )
+
     # 2. Apply finish allowance
     if finish_allowance_mm > 0:
         buffered_part = shadowed_poly.buffer(finish_allowance_mm, join_style="round")

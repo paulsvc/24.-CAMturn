@@ -119,7 +119,11 @@ class LatheProject:
 
     @classmethod
     def create_demo_project(cls) -> LatheProject:
-        """Creates a rich stepped aerospace/automotive turned shaft with fillet, taper, undercut groove, and thread journal."""
+        """Creates a rich stepped aerospace/automotive turned shaft with central drilled hole, fillet, taper, undercut groove, and thread journal."""
+        hole_r = 3.0   # Ø6mm axial hole drilled by Op 5
+        hole_z = -22.0 # Drilled depth
+        tip_z = -23.8  # Standard 118° drill point on centerline
+
         pts: list[Point2D] = [
             (0.0, 6.5),     # Front chamfer start
             (-1.5, 8.0),    # M16x1.5 thread journal (OD 16mm -> R=8.0mm)
@@ -142,7 +146,12 @@ class LatheProject:
 
         pts.extend([
             (-33.0, 18.0),  # Rear flange shoulder (OD 36mm -> R=18.0mm)
-            (-42.0, 18.0),
+            (-42.0, 18.0),  # End of flange OD
+            (-42.0, 0.0),   # Rear face down to spindle centerline
+            (tip_z, 0.0),   # Centerline forward to drill tip cone
+            (hole_z, hole_r), # 118° drill point up to Ø6mm bore
+            (0.0, hole_r),  # Axial hole bore forward to front face
+            (0.0, 6.5),     # Front face up to chamfer start (watertight closed contour)
         ])
 
         contour = Contour(pts)
