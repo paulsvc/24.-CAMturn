@@ -277,7 +277,7 @@ def verify_gcode(
 
         # Canned cycles (G76, G83, G74, G81-G89)
         if mode in ("G76", "G83", "G74", "G81", "G82", "G84", "G85", "G86", "G87", "G88", "G89"):
-            if mode in ("G81", "G82", "G83", "G84", "G85", "G86", "G87", "G88", "G89") and active_plane == "G18":
+            if mode in ("G81", "G82", "G83", "G84", "G85", "G86", "G87", "G88", "G89") and plane_g18_set:
                 issues.append(GCodeIssue(
                     line_number=idx,
                     code="G18_CANNED_CYCLE_NO_Y",

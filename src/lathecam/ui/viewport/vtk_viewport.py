@@ -5,13 +5,15 @@ from typing import Sequence
 import numpy as np
 import pyvista as pv
 from pyvistaqt import QtInteractor
-from PySide6.QtCore import Qt, Signal, QPoint
+from PySide6.QtCore import Qt, Signal, QPoint, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QMenu,
     QPushButton,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
@@ -19,6 +21,7 @@ from PySide6.QtWidgets import (
 from lathecam.cad.face import FaceType, TurnedFace
 from lathecam.cad.geometry import Point2D
 from lathecam.cam.simulator import discretize_arc
+from lathecam.cam.tool_mesh import SimFrame, build_simulation_trajectory, build_tool_3d_meshes
 from lathecam.models.project import LatheProject, OperationType
 from lathecam.ui.i18n import get_language, tr
 from lathecam.ui.theme import get_current_theme, get_viewport_colors
@@ -104,6 +107,17 @@ class VTKLatheViewport(BaseViewportCanvas):
         self.is_2d_mode: bool = False
         self.face_pick_enabled: bool = True
 
+        # Tool simulation state
+        self._sim_trajectory: list[SimFrame] = []
+        self._sim_frame_idx: int = 0
+        self._sim_timer: QTimer = QTimer(self)
+        self._sim_timer.setInterval(25)
+        self._sim_timer.timeout.connect(self._on_sim_timer_tick)
+        self._sim_playing: bool = False
+        self._sim_speed: float = 1.0
+        self._tool_actors: dict[int, tuple[object, object]] = {}
+        self._active_tool_id: int | None = None
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -187,8 +201,73 @@ class VTKLatheViewport(BaseViewportCanvas):
         self.plotter.interactor.customContextMenuRequested.connect(self._on_context_menu)
         layout.addWidget(self.plotter.interactor)
 
+        # 4. Simulation Playback Control Bar
+        self._setup_sim_bar(layout)
+
         self._setup_vtk_picking()
         self.apply_theme_colors()
+
+    def _setup_sim_bar(self, layout: QVBoxLayout) -> None:
+        """Constructs the interactive simulation timeline and playback toolbar."""
+        self.sim_bar = QWidget()
+        sim_layout = QHBoxLayout(self.sim_bar)
+        sim_layout.setContentsMargins(10, 5, 10, 5)
+        sim_layout.setSpacing(8)
+
+        self.btn_sim_play = QPushButton(tr("sim.btn_play"))
+        self.btn_sim_play.setFixedWidth(78)
+        self.btn_sim_play.clicked.connect(self.sim_toggle_play_pause)
+
+        self.btn_sim_stop = QPushButton(tr("sim.btn_stop"))
+        self.btn_sim_stop.setObjectName("secondaryBtn")
+        self.btn_sim_stop.setFixedWidth(72)
+        self.btn_sim_stop.clicked.connect(self.sim_stop)
+
+        self.btn_sim_step_back = QPushButton("⏮")
+        self.btn_sim_step_back.setObjectName("secondaryBtn")
+        self.btn_sim_step_back.setFixedWidth(36)
+        self.btn_sim_step_back.setToolTip(tr("sim.step_back"))
+        self.btn_sim_step_back.clicked.connect(lambda: self.sim_step(-15))
+
+        self.btn_sim_step_fwd = QPushButton("⏭")
+        self.btn_sim_step_fwd.setObjectName("secondaryBtn")
+        self.btn_sim_step_fwd.setFixedWidth(36)
+        self.btn_sim_step_fwd.setToolTip(tr("sim.step_fwd"))
+        self.btn_sim_step_fwd.clicked.connect(lambda: self.sim_step(15))
+
+        self.slider_sim = QSlider(Qt.Orientation.Horizontal)
+        self.slider_sim.setRange(0, 0)
+        self.slider_sim.setValue(0)
+        self.slider_sim.sliderMoved.connect(self._on_slider_moved)
+        self.slider_sim.valueChanged.connect(self._on_slider_value_changed)
+
+        self.lbl_sim_status = QLabel("G0 RAPID")
+        self.lbl_sim_status.setStyleSheet(
+            "background-color: #dc2626; color: #ffffff; border-radius: 4px; padding: 2px 7px; font-weight: bold; font-size: 11px;"
+        )
+
+        self.lbl_sim_tool = QLabel("T1")
+        self.lbl_sim_tool.setStyleSheet("color: #38bdf8; font-weight: bold; font-size: 11px;")
+
+        self.lbl_sim_pos = QLabel("Z: +0.000  X: +0.000 (Ø0.000)")
+        self.lbl_sim_pos.setStyleSheet("font-family: monospace; font-size: 11px; font-weight: bold;")
+
+        self.combo_sim_speed = QComboBox()
+        self.combo_sim_speed.addItems(["0.5x", "1.0x", "2.0x", "4.0x", "8.0x"])
+        self.combo_sim_speed.setCurrentText("1.0x")
+        self.combo_sim_speed.currentTextChanged.connect(self._on_speed_changed)
+        self.combo_sim_speed.setFixedWidth(68)
+
+        sim_layout.addWidget(self.btn_sim_play)
+        sim_layout.addWidget(self.btn_sim_stop)
+        sim_layout.addWidget(self.btn_sim_step_back)
+        sim_layout.addWidget(self.btn_sim_step_fwd)
+        sim_layout.addWidget(self.slider_sim)
+        sim_layout.addWidget(self.lbl_sim_status)
+        sim_layout.addWidget(self.lbl_sim_tool)
+        sim_layout.addWidget(self.lbl_sim_pos)
+        sim_layout.addWidget(self.combo_sim_speed)
+        layout.addWidget(self.sim_bar)
 
     def _setup_vtk_picking(self) -> None:
         """Enables left-click surface point picking on the VTK scene to select TurnedFace features."""
@@ -293,6 +372,11 @@ class VTKLatheViewport(BaseViewportCanvas):
             zlabel="X (Radius)",
             color=colors["axes_color"],
         )
+        sim_bg = "#f1f5f9" if is_light else "#0f172a"
+        sim_border = "#cbd5e1" if is_light else "#334155"
+        pos_color = "#0f172a" if is_light else "#f8fafc"
+        self.sim_bar.setStyleSheet(f"background-color: {sim_bg}; border-top: 1px solid {sim_border};")
+        self.lbl_sim_pos.setStyleSheet(f"color: {pos_color}; font-family: monospace; font-size: 11px; font-weight: bold;")
         if self._project is not None:
             self._rebuild_scene(reset_camera=False)
 
@@ -314,6 +398,11 @@ class VTKLatheViewport(BaseViewportCanvas):
         self.btn_face_thread.setText(tr("face.act_thread"))
         self.btn_face_part.setText(tr("face.act_part"))
 
+        self.btn_sim_play.setText(tr("sim.btn_pause") if self._sim_playing else tr("sim.btn_play"))
+        self.btn_sim_stop.setText(tr("sim.btn_stop"))
+        self.btn_sim_step_back.setToolTip(tr("sim.step_back"))
+        self.btn_sim_step_fwd.setToolTip(tr("sim.step_fwd"))
+
         if self._active_face_id and self._project:
             face = self._project.get_face_by_id(self._active_face_id)
             if face is not None:
@@ -328,7 +417,143 @@ class VTKLatheViewport(BaseViewportCanvas):
     ) -> None:
         self._project = project
         self._active_op_id = active_op_id
+
+        if self._sim_playing:
+            self.sim_pause()
+
+        self._sim_trajectory = build_simulation_trajectory(self._project, op_id=self._active_op_id)
+        self._sim_frame_idx = 0
+        self.slider_sim.blockSignals(True)
+        self.slider_sim.setRange(0, max(0, len(self._sim_trajectory) - 1))
+        self.slider_sim.setValue(0)
+        self.slider_sim.blockSignals(False)
+
         self._rebuild_scene(reset_camera=(self.plotter.renderer.GetActors().GetNumberOfItems() == 0))
+
+    def sim_play(self) -> None:
+        """Starts continuous simulation playback along the toolpath."""
+        if not self._sim_trajectory:
+            return
+        if self._sim_frame_idx >= len(self._sim_trajectory) - 1:
+            self._sim_frame_idx = 0
+            self._apply_sim_frame(0)
+        self._sim_playing = True
+        self.btn_sim_play.setText(tr("sim.btn_pause"))
+        self._sim_timer.start(25)
+
+    def sim_pause(self) -> None:
+        """Pauses simulation playback at the current frame."""
+        self._sim_playing = False
+        self._sim_timer.stop()
+        self.btn_sim_play.setText(tr("sim.btn_play"))
+
+    def sim_stop(self) -> None:
+        """Stops simulation and rewinds the tool to the beginning."""
+        self.sim_pause()
+        self._sim_frame_idx = 0
+        if self._sim_trajectory:
+            self._apply_sim_frame(0)
+
+    def sim_toggle_play_pause(self) -> None:
+        """Toggles between Play and Pause states."""
+        if self._sim_playing:
+            self.sim_pause()
+        else:
+            self.sim_play()
+
+    def sim_step(self, delta_frames: int) -> None:
+        """Steps forward or backward by a given number of frames."""
+        if not self._sim_trajectory:
+            return
+        self.sim_pause()
+        new_idx = max(0, min(self._sim_frame_idx + delta_frames, len(self._sim_trajectory) - 1))
+        self._apply_sim_frame(new_idx)
+
+    def _on_slider_moved(self, val: int) -> None:
+        if self._sim_playing:
+            self.sim_pause()
+        self._apply_sim_frame(val)
+
+    def _on_slider_value_changed(self, val: int) -> None:
+        if not self._sim_playing:
+            self._apply_sim_frame(val)
+
+    def _on_speed_changed(self, text: str) -> None:
+        try:
+            self._sim_speed = float(text.replace("x", "").strip())
+        except ValueError:
+            self._sim_speed = 1.0
+
+    def _on_sim_timer_tick(self) -> None:
+        if not self._sim_trajectory:
+            self.sim_pause()
+            return
+        step = max(1, int(round(self._sim_speed * 3)))
+        next_idx = self._sim_frame_idx + step
+        if next_idx >= len(self._sim_trajectory):
+            self._apply_sim_frame(len(self._sim_trajectory) - 1)
+            self.sim_pause()
+        else:
+            self._apply_sim_frame(next_idx)
+
+    def _apply_sim_frame(self, idx: int, render: bool = True) -> None:
+        if not self._sim_trajectory:
+            return
+        idx = max(0, min(idx, len(self._sim_trajectory) - 1))
+        self._sim_frame_idx = idx
+        frame = self._sim_trajectory[idx]
+
+        # Update slider without recursive trigger
+        self.slider_sim.blockSignals(True)
+        self.slider_sim.setValue(idx)
+        self.slider_sim.blockSignals(False)
+
+        # Switch tool visibility if needed
+        if frame.tool_id != self._active_tool_id:
+            for tid, (ins_act, shk_act) in self._tool_actors.items():
+                ins_act.SetVisibility(tid == frame.tool_id)
+                shk_act.SetVisibility(tid == frame.tool_id)
+            self._active_tool_id = frame.tool_id
+
+        # Update position of active tool
+        if frame.tool_id in self._tool_actors:
+            ins_act, shk_act = self._tool_actors[frame.tool_id]
+            ins_act.SetPosition(frame.z, 0.0, frame.x)
+            shk_act.SetPosition(frame.z, 0.0, frame.x)
+
+        # Update UI readouts
+        dia = frame.x * 2.0
+        self.lbl_sim_pos.setText(f"Z: {frame.z:+7.3f}  X: {frame.x:6.3f} (Ø{dia:6.3f})")
+        self.lbl_sim_tool.setText(f"T{frame.tool_id} {frame.tool_name}")
+        self._update_status_badge(frame.mode)
+
+        if render:
+            self.plotter.render()
+
+    def _update_status_badge(self, mode: str) -> None:
+        m = (mode or "").upper()
+        if m == "G0":
+            bg = "#dc2626"
+            text = "G0 RAPID"
+        elif m in ("G1", "G41", "G42", "G40"):
+            bg = "#16a34a"
+            text = "G1 FEED"
+        elif m in ("G2", "G3"):
+            bg = "#0891b2"
+            text = f"{m} ARC"
+        elif m in ("G33", "G76"):
+            bg = "#ca8a04"
+            text = f"{m} THREAD"
+        elif m in ("G83", "G73"):
+            bg = "#9333ea"
+            text = f"{m} PECK"
+        else:
+            bg = "#64748b"
+            text = m
+        self.lbl_sim_status.setStyleSheet(
+            f"background-color: {bg}; color: #ffffff; border-radius: 4px; padding: 2px 7px; font-weight: bold; font-size: 11px;"
+        )
+        self.lbl_sim_status.setText(text)
 
     def _rebuild_scene(self, reset_camera: bool = False) -> None:
         if self._project is None:
@@ -489,6 +714,41 @@ class VTKLatheViewport(BaseViewportCanvas):
         self._add_batched_lines(g1_segments, colors["g1"], line_width=2.4)
         self._add_batched_lines(arc_segments, colors["arc"], line_width=3.2)
         self._add_batched_lines(thread_segments, colors["thread"], line_width=2.2)
+
+        # 5. Build and attach 3D tool actors
+        self._tool_actors.clear()
+        self._active_tool_id = None
+        if self._project.tools:
+            for tool in self._project.tools.values():
+                ins_mesh, shk_mesh = build_tool_3d_meshes(tool)
+                ins_act = self.plotter.add_mesh(
+                    ins_mesh,
+                    color="#f59e0b",
+                    specular=0.85,
+                    specular_power=40,
+                    smooth_shading=True,
+                )
+                shk_act = self.plotter.add_mesh(
+                    shk_mesh,
+                    color="#334155",
+                    specular=0.5,
+                    specular_power=20,
+                    smooth_shading=True,
+                )
+                ins_act.SetVisibility(False)
+                shk_act.SetVisibility(False)
+                self._tool_actors[tool.tool_id] = (ins_act, shk_act)
+        else:
+            ins_mesh, shk_mesh = build_tool_3d_meshes(None)
+            ins_act = self.plotter.add_mesh(ins_mesh, color="#f59e0b", specular=0.85, smooth_shading=True)
+            shk_act = self.plotter.add_mesh(shk_mesh, color="#334155", specular=0.5, smooth_shading=True)
+            ins_act.SetVisibility(False)
+            shk_act.SetVisibility(False)
+            self._tool_actors[1] = (ins_act, shk_act)
+
+        # Position tool at current simulation frame
+        if self._sim_trajectory:
+            self._apply_sim_frame(self._sim_frame_idx, render=False)
 
         if reset_camera:
             self.set_isometric_view()

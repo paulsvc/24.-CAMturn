@@ -39,8 +39,8 @@ class LatheCAMMainWindow(QMainWindow):
         self.project: LatheProject = project or LatheProject.create_demo_project()
         self._active_op_id: str | None = None
 
-        self._setup_toolbar()
         self._setup_central_viewport()
+        self._setup_toolbar()
         self._setup_docks()
         self._setup_statusbar()
 
@@ -104,6 +104,14 @@ class LatheCAMMainWindow(QMainWindow):
         self.act_export = QAction(tr("toolbar.post_gcode"), self)
         self.act_export.triggered.connect(self.action_export_gcode)
         toolbar.addAction(self.act_export)
+
+        toolbar.addSeparator()
+
+        self.act_simulate = QAction(tr("toolbar.simulate"), self)
+        self.act_simulate.setShortcut("Space")
+        self.act_simulate.setToolTip("Play / Pause simulation playback (Space)")
+        self.act_simulate.triggered.connect(self.viewport.sim_toggle_play_pause)
+        toolbar.addAction(self.act_simulate)
 
         toolbar.addSeparator()
 
@@ -228,6 +236,7 @@ class LatheCAMMainWindow(QMainWindow):
         self.act_add_drill.setText(tr("toolbar.add_drill"))
         self.act_add_part.setText(tr("toolbar.add_part"))
         self.act_export.setText(tr("toolbar.post_gcode"))
+        self.act_simulate.setText(tr("toolbar.simulate"))
         self.act_theme.setText(
             tr("toolbar.theme_light") if get_current_theme() == "dark" else tr("toolbar.theme_dark")
         )
@@ -481,3 +490,8 @@ class LatheCAMMainWindow(QMainWindow):
 
         win_pixmap.save(str(out), "PNG")
         return out
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self.viewport.sim_stop()
+        super().keyPressEvent(event)

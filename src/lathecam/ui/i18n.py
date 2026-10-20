@@ -20,6 +20,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "toolbar.post_gcode": "💾 Post G-Code",
         "toolbar.theme_dark": "🌙 Dark Theme",
         "toolbar.theme_light": "☀️ White Theme",
+        "toolbar.simulate": "▶ Simulate Toolpath",
         "toolbar.lang_label": "🌐",
 
         # Status Bar
@@ -123,6 +124,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "<span style='color:#0891b2; font-weight:bold;'>━━ G2/G3 Arc</span> &nbsp;&nbsp;"
             "<span style='color:#ca8a04; font-weight:bold;'>━━ G76/G33 Thread</span>"
         ),
+
+        # Simulation Bar
+        "sim.btn_play": "▶ Play",
+        "sim.btn_pause": "⏸ Pause",
+        "sim.btn_stop": "⏹ Stop",
+        "sim.step_back": "⏮ Step Back",
+        "sim.step_fwd": "⏭ Step Fwd",
+        "sim.speed": "Speed",
+        "sim.idle": "Simulation Ready",
+        "sim.finished": "Simulation Finished",
     },
     "fr": {
         # Window & Toolbar
@@ -141,6 +152,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "toolbar.post_gcode": "💾 Générer G-Code",
         "toolbar.theme_dark": "🌙 Thème Sombre",
         "toolbar.theme_light": "☀️ Thème Clair",
+        "toolbar.simulate": "▶ Simuler Parcours",
         "toolbar.lang_label": "🌐",
 
         # Status Bar
@@ -244,6 +256,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "<span style='color:#0891b2; font-weight:bold;'>━━ G2/G3 Arc</span> &nbsp;&nbsp;"
             "<span style='color:#ca8a04; font-weight:bold;'>━━ G76/G33 Filetage</span>"
         ),
+
+        # Simulation Bar
+        "sim.btn_play": "▶ Lecture",
+        "sim.btn_pause": "⏸ Pause",
+        "sim.btn_stop": "⏹ Arrêt",
+        "sim.step_back": "⏮ Reculer",
+        "sim.step_fwd": "⏭ Avancer",
+        "sim.speed": "Vitesse",
+        "sim.idle": "Simulation Prête",
+        "sim.finished": "Simulation Terminée",
     },
 }
 
