@@ -147,7 +147,27 @@ python run.py
 run.bat
 ```
 
-#### Run Automated Unit Tests (45 Tests)
+#### Web & Cloud Deployment (Docker)
+
+LatheCAM can be deployed to any Linux server or ran in modern web browsers via Docker:
+
+```bash
+docker compose up -d
+```
+The web application is immediately accessible at `http://localhost` (or HTTPS with automatic TLS via Caddy).
+
+For local development:
+```bash
+# Terminal 1: FastAPI Backend
+python -m uvicorn lathecam_web.main:app --reload --port 8000
+
+# Terminal 2: React Three.js Frontend
+cd frontend
+npm install
+npm run dev
+```
+
+#### Run Automated Test Suite (54 Unit & Integration Tests)
 ```bash
 python -m pytest -v
 ```
@@ -248,7 +268,7 @@ pip install -r requirements.txt
 pip install -r requirements-core.txt
 ```
 
-#### Lancement de l'Application
+#### Lancement de l'Application Desktop
 
 **Option 1 — Universelle (Toutes plateformes : Windows, Linux, macOS) :**
 ```bash
@@ -265,7 +285,27 @@ python run.py
 run.bat
 ```
 
-#### Lancer la Suite de Tests Automatisés (45 Tests Unitaires)
+#### Déploiement Web & Cloud (Docker)
+
+LatheCAM peut être exécuté dans un navigateur Web sans aucune installation locale grâce à son conteneur Docker :
+
+```bash
+docker compose up -d
+```
+L'interface Web est alors accessible sur `http://localhost` (ou via proxy inverse Caddy/Nginx avec HTTPS).
+
+Pour le développement local :
+```bash
+# Terminal 1 : Backend FastAPI
+python -m uvicorn lathecam_web.main:app --reload --port 8000
+
+# Terminal 2 : Frontend Vite / React Three.js
+cd frontend
+npm install
+npm run dev
+```
+
+#### Lancer la Suite de Tests Automatisés (54 Tests Unitaires & Intégration)
 ```bash
 python -m pytest -v
 ```

@@ -1,0 +1,11 @@
+:80 {
+    # Reverse proxy API endpoints
+    handle /api/* {
+        reverse_proxy lathecam:8000
+    }
+
+    # Static assets and SPA fallback
+    handle {
+        reverse_proxy lathecam:8000
+    }
+}

@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  lathecam:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lathecam:latest
+    restart: unless-stopped
+    environment:
+      - PORT=8000
+      - ENVIRONMENT=production
+    ports:
+      - "8000:8000"
+    volumes:
+      - lathecam_data:/app/data
+      - lathecam_uploads:/app/uploads
+    networks:
+      - lathecam_net
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - lathecam
+    networks:
+      - lathecam_net
+
+volumes:
+  lathecam_data:
+  lathecam_uploads:
+  caddy_data:
+  caddy_config:
+
+networks:
+  lathecam_net:
+    driver: bridge
