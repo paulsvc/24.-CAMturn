@@ -27,10 +27,15 @@ import {
   Upload,
   RotateCcw,
   Wrench,
-  PlayCircle,
   FileDown,
   Loader2,
+  Box,
+  Layers,
+  Settings2,
+  FileCode,
 } from 'lucide-react'
+
+type MobileTab = 'viewport' | 'features' | 'inspector' | 'gcode'
 
 export const App: React.FC = () => {
   const [project, setProject] = useState<ProjectState | null>(null)
@@ -40,6 +45,9 @@ export const App: React.FC = () => {
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isToolModalOpen, setIsToolModalOpen] = useState(false)
+
+  // Mobile navigation tab state
+  const [activeMobileTab, setActiveMobileTab] = useState<MobileTab>('viewport')
 
   // Viewport Settings
   const [cutaway, setCutaway] = useState(true)
@@ -144,6 +152,7 @@ export const App: React.FC = () => {
       setProject(updated)
       setSelectedOpId(null)
       await refreshGeometryAndWaypoints(cutaway)
+      setActiveMobileTab('viewport')
     } catch (err: any) {
       alert(`CAD Import Error: ${err.message}`)
     } finally {
@@ -157,7 +166,8 @@ export const App: React.FC = () => {
     try {
       const updated = await addFaceOperation(faceId, opType)
       setProject(updated)
-      setSelectedOpId(updated.operations[updated.operations.length - 1]?.op_id || null)
+      const lastOp = updated.operations[updated.operations.length - 1]
+      setSelectedOpId(lastOp?.op_id || null)
       const wp = await fetchSimulationWaypoints()
       setWaypoints(wp)
     } catch (err: any) {
@@ -241,20 +251,19 @@ export const App: React.FC = () => {
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
       {/* Top Navbar */}
-      <header className="h-12 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between shrink-0 select-none">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 font-bold text-base tracking-tight text-white">
+      <header className="h-12 bg-slate-900 border-b border-slate-800 px-3 sm:px-4 flex items-center justify-between shrink-0 select-none">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-1.5 font-bold text-sm sm:text-base tracking-tight text-white shrink-0">
             <Cpu className="w-5 h-5 text-sky-400" />
-            <span>LatheCAM <span className="text-sky-400 font-mono text-xs font-normal">Cloud Web</span></span>
+            <span>CAMturn</span>
           </div>
-          <div className="h-4 w-px bg-slate-700" />
-          <span className="text-xs text-slate-300 font-medium truncate max-w-xs">
-            {project?.name || 'Loading Project...'}
+          <span className="hidden sm:inline text-xs text-slate-400 font-mono">
+            {project?.name || ''}
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-xs">
-          {/* Hidden File Input */}
+        {/* Action Buttons */}
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs">
           <input
             type="file"
             ref={fileInputRef}
@@ -266,44 +275,45 @@ export const App: React.FC = () => {
           <button
             onClick={() => fileInputRef.current?.click()}
             title="Import 3D STEP or 2D DXF CAD Model"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 transition"
+            className="flex items-center gap-1 px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 transition"
           >
             <Upload className="w-3.5 h-3.5 text-sky-400" />
-            <span>Import CAD</span>
+            <span className="hidden xs:inline">Import</span>
           </button>
 
           <button
             onClick={handleLoadDemo}
             title="Reload Stepped Aerospace Shaft Demo"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 transition"
+            className="flex items-center gap-1 px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 transition"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Demo Shaft</span>
+            <span className="hidden sm:inline">Demo</span>
           </button>
 
           <button
             onClick={() => setIsToolModalOpen(true)}
-            title="ISO Insert Tool Library Editor"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 transition"
+            title="ISO Insert Tool Library"
+            className="flex items-center gap-1 px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 transition"
           >
             <Wrench className="w-3.5 h-3.5 text-amber-400" />
-            <span>Tool Library</span>
+            <span className="hidden md:inline">Tools</span>
           </button>
 
           <button
             onClick={handleDownloadGCode}
             title="Download G-Code program"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 rounded text-white font-medium shadow-sm transition"
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 rounded text-white font-medium transition"
           >
             <FileDown className="w-3.5 h-3.5" />
-            <span>Export G-Code</span>
+            <span className="hidden sm:inline">G-Code</span>
           </button>
         </div>
       </header>
 
-      {/* Main 3-Column Studio Layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left: Feature Tree (Stock + Faces + Operations) */}
+      {/* Main Content Area */}
+      {/* 1. Desktop Layout (lg screens and wider: 3-column studio layout) */}
+      <div className="hidden lg:flex flex-1 overflow-hidden">
+        {/* Left: Feature Tree */}
         <aside className="w-80 h-full shrink-0">
           {project && (
             <FeatureTree
@@ -392,7 +402,156 @@ export const App: React.FC = () => {
         </aside>
       </div>
 
-      {/* ISO Tool Library Modal */}
+      {/* 2. Mobile Layout (< lg screens: Tabbed Full-Screen Experience) */}
+      <div className="flex lg:hidden flex-1 overflow-hidden flex-col relative">
+        {isLoading && (
+          <div className="absolute inset-0 z-40 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center gap-2 text-sky-400 text-sm">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Recalculating...</span>
+          </div>
+        )}
+
+        {/* Tab 1: 3D Viewport & Simulation Controls */}
+        <div className={`flex-1 flex flex-col h-full ${activeMobileTab === 'viewport' ? 'flex' : 'hidden'}`}>
+          <div className="flex-1 relative">
+            <Viewport3D
+              partMesh={partMesh}
+              stockMesh={stockMesh}
+              waypoints={waypoints}
+              activeWaypointIndex={simIndex}
+              cutaway={cutaway}
+              onToggleCutaway={handleToggleCutaway}
+              showStock={showStock}
+              onToggleStock={() => setShowStock(!showStock)}
+              showRapids={showRapids}
+              onToggleRapids={() => setShowRapids(!showRapids)}
+            />
+          </div>
+
+          <SimulationControls
+            waypoints={waypoints}
+            currentIndex={simIndex}
+            isPlaying={isPlaying}
+            speedMultiplier={speedMultiplier}
+            onPlayPause={() => setIsPlaying(!isPlaying)}
+            onReset={() => {
+              setIsPlaying(false)
+              setSimIndex(0)
+            }}
+            onStepBack={() => {
+              setIsPlaying(false)
+              setSimIndex((prev) => Math.max(0, prev - 1))
+            }}
+            onStepForward={() => {
+              setIsPlaying(false)
+              setSimIndex((prev) => Math.min(waypoints.length - 1, prev + 1))
+            }}
+            onSeek={(idx) => {
+              setIsPlaying(false)
+              setSimIndex(idx)
+            }}
+            onChangeSpeed={(spd) => setSpeedMultiplier(spd)}
+          />
+        </div>
+
+        {/* Tab 2: Feature Manager (Stock, CAD Faces, Operations) */}
+        <div className={`flex-1 overflow-y-auto ${activeMobileTab === 'features' ? 'block' : 'hidden'}`}>
+          {project && (
+            <FeatureTree
+              stock={project.stock}
+              faces={project.faces}
+              operations={project.operations}
+              selectedOpId={selectedOpId}
+              onSelectOp={(id) => {
+                setSelectedOpId(id)
+                setActiveMobileTab('inspector') // Jump to inspector on mobile
+              }}
+              onToggleOp={handleToggleOp}
+              onDeleteOp={handleDeleteOp}
+              onMoveOp={handleMoveOp}
+              onAddFaceOp={(faceId, opType) => {
+                handleAddFaceOp(faceId, opType)
+                setActiveMobileTab('viewport') // Jump back to see the path
+              }}
+            />
+          )}
+        </div>
+
+        {/* Tab 3: Properties Inspector */}
+        <div className={`flex-1 overflow-y-auto ${activeMobileTab === 'inspector' ? 'block' : 'hidden'}`}>
+          <OperationEditor
+            operation={activeOp}
+            tools={project?.tools || []}
+            onUpdateOperation={handleUpdateOperation}
+          />
+        </div>
+
+        {/* Tab 4: G-Code Dock */}
+        <div className={`flex-1 overflow-y-auto ${activeMobileTab === 'gcode' ? 'block' : 'hidden'}`}>
+          {project && (
+            <GCodeDock
+              gcodeText={project.gcode_text}
+              dialect={project.post_dialect}
+              verification={project.verification}
+              onChangeDialect={handleChangeDialect}
+              onDownloadGCode={handleDownloadGCode}
+            />
+          )}
+        </div>
+
+        {/* Mobile Bottom Navigation Bar */}
+        <nav className="h-14 bg-slate-900 border-t border-slate-800 grid grid-cols-4 select-none shrink-0 text-slate-400">
+          <button
+            onClick={() => setActiveMobileTab('viewport')}
+            className={`flex flex-col items-center justify-center gap-1 transition ${
+              activeMobileTab === 'viewport' ? 'text-sky-400 font-semibold bg-slate-800/40' : 'hover:text-slate-200'
+            }`}
+          >
+            <Box className="w-5 h-5" />
+            <span className="text-[10px]">3D View</span>
+          </button>
+
+          <button
+            onClick={() => setActiveMobileTab('features')}
+            className={`flex flex-col items-center justify-center gap-1 transition relative ${
+              activeMobileTab === 'features' ? 'text-sky-400 font-semibold bg-slate-800/40' : 'hover:text-slate-200'
+            }`}
+          >
+            <Layers className="w-5 h-5" />
+            <span className="text-[10px]">Operations</span>
+            {project && project.operations.length > 0 && (
+              <span className="absolute top-1.5 right-4 bg-sky-600 text-white rounded-full w-4 h-4 text-[9px] flex items-center justify-center font-bold">
+                {project.operations.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveMobileTab('inspector')}
+            className={`flex flex-col items-center justify-center gap-1 transition ${
+              activeMobileTab === 'inspector' ? 'text-sky-400 font-semibold bg-slate-800/40' : 'hover:text-slate-200'
+            }`}
+          >
+            <Settings2 className="w-5 h-5" />
+            <span className="text-[10px]">Inspector</span>
+          </button>
+
+          <button
+            onClick={() => setActiveMobileTab('gcode')}
+            className={`flex flex-col items-center justify-center gap-1 transition relative ${
+              activeMobileTab === 'gcode' ? 'text-sky-400 font-semibold bg-slate-800/40' : 'hover:text-slate-200'
+            }`}
+          >
+            <FileCode className="w-5 h-5" />
+            <span className="text-[10px]">G-Code</span>
+            {project?.verification?.is_valid && (
+              <span className="absolute top-2 right-5 bg-emerald-500 rounded-full w-2 h-2" />
+            )}
+          </button>
+        </nav>
+      </div>
+
+      {/* ISO Tool Library Modal (Both Desktop & Mobile) */}
       {project && (
         <ToolLibraryModal
           isOpen={isToolModalOpen}

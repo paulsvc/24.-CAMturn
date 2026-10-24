@@ -45,128 +45,121 @@ export const SimulationControls: React.FC<SimulationControlsProps> = ({
   }
 
   return (
-    <div className="bg-slate-900 border-t border-slate-800 p-3 select-none flex flex-col md:flex-row items-center justify-between gap-3 text-slate-200">
-      {/* Left: Transport Buttons */}
-      <div className="flex items-center gap-1.5">
-        <button
-          onClick={onReset}
-          title="Reset Simulation (Start)"
-          className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition"
-        >
-          <Square className="w-4 h-4" />
-        </button>
-        <button
-          onClick={onStepBack}
-          title="Step Backward"
-          className="p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition"
-        >
-          <SkipBack className="w-4 h-4" />
-        </button>
-        <button
-          onClick={onPlayPause}
-          title={isPlaying ? 'Pause' : 'Play Tool Simulation'}
-          className={`px-4 py-2 rounded-lg font-medium flex items-center gap-1.5 transition ${
-            isPlaying
-              ? 'bg-amber-600 hover:bg-amber-500 text-white'
-              : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-          }`}
-        >
-          {isPlaying ? (
-            <>
-              <Pause className="w-4 h-4" />
-              <span>Pause</span>
-            </>
-          ) : (
-            <>
-              <Play className="w-4 h-4" />
-              <span>Play</span>
-            </>
-          )}
-        </button>
-        <button
-          onClick={onStepForward}
-          title="Step Forward"
-          className="p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition"
-        >
-          <SkipForward className="w-4 h-4" />
-        </button>
+    <div className="bg-slate-900 border-t border-slate-800 p-2 sm:p-3 select-none flex flex-col gap-2 text-slate-200">
+      {/* Upper Control Bar: Transport buttons + Slider */}
+      <div className="flex items-center justify-between gap-2">
+        {/* Transport Buttons */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={onReset}
+            title="Reset Simulation (Start)"
+            className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition"
+          >
+            <Square className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onStepBack}
+            title="Step Backward"
+            className="p-1.5 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition"
+          >
+            <SkipBack className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onPlayPause}
+            title={isPlaying ? 'Pause' : 'Play Tool Simulation'}
+            className={`px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 transition text-xs ${
+              isPlaying
+                ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+            }`}
+          >
+            {isPlaying ? (
+              <>
+                <Pause className="w-3.5 h-3.5" />
+                <span className="hidden xs:inline">Pause</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5" />
+                <span className="hidden xs:inline">Play</span>
+              </>
+            )}
+          </button>
+          <button
+            onClick={onStepForward}
+            title="Step Forward"
+            className="p-1.5 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition"
+          >
+            <SkipForward className="w-3.5 h-3.5" />
+          </button>
 
-        {/* Speed multiplier selector */}
-        <div className="flex items-center ml-2 bg-slate-950 px-1 py-0.5 rounded-lg border border-slate-800">
-          <FastForward className="w-3.5 h-3.5 text-slate-400 ml-1 mr-1" />
-          {[0.5, 1, 2, 5].map((spd) => (
-            <button
-              key={spd}
-              onClick={() => onChangeSpeed(spd)}
-              className={`px-1.5 py-0.5 text-xs rounded transition font-mono ${
-                speedMultiplier === spd
-                  ? 'bg-sky-600 text-white font-semibold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {spd}x
-            </button>
-          ))}
+          {/* Speed multiplier selector */}
+          <div className="flex items-center bg-slate-950 px-1 py-0.5 rounded border border-slate-800 text-[10px]">
+            {[1, 2, 5].map((spd) => (
+              <button
+                key={spd}
+                onClick={() => onChangeSpeed(spd)}
+                className={`px-1 rounded transition font-mono ${
+                  speedMultiplier === spd
+                    ? 'bg-sky-600 text-white font-semibold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {spd}x
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Scrub Slider & Step Counter */}
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          <input
+            type="range"
+            min={0}
+            max={Math.max(0, total - 1)}
+            value={currentIndex}
+            onChange={(e) => onSeek(parseInt(e.target.value, 10))}
+            className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
+          />
+          <span className="text-[10px] font-mono text-slate-400 shrink-0">
+            {total > 0 ? currentIndex + 1 : 0}/{total}
+          </span>
         </div>
       </div>
 
-      {/* Middle: Scrub Slider & Step Counter */}
-      <div className="flex-1 w-full max-w-xl flex items-center gap-3">
-        <span className="text-xs font-mono text-slate-400 min-w-[50px] text-right">
-          {total > 0 ? currentIndex + 1 : 0}/{total}
-        </span>
-        <input
-          type="range"
-          min={0}
-          max={Math.max(0, total - 1)}
-          value={currentIndex}
-          onChange={(e) => onSeek(parseInt(e.target.value, 10))}
-          className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
-        />
-      </div>
-
-      {/* Right: Digital Coordinate Readout (DRO) */}
-      <div className="flex items-center gap-3 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 font-mono text-xs">
+      {/* Lower Bar: Digital Coordinate Readout (DRO) */}
+      <div className="flex items-center justify-between bg-slate-950 px-2 py-1 rounded border border-slate-800 font-mono text-[11px] overflow-x-auto">
         {currentWp ? (
           <>
-            <span
-              className={`px-1.5 py-0.5 rounded text-[11px] font-bold border ${getModeBadgeClass(
-                currentWp.mode
-              )}`}
-            >
-              {currentWp.mode}
-            </span>
-            <div className="flex items-center gap-2 text-slate-300">
-              <span>
-                Z:{' '}
-                <strong className="text-sky-400">
-                  {currentWp.z.toFixed(2)}
-                </strong>
+            <div className="flex items-center gap-2 shrink-0">
+              <span
+                className={`px-1 py-0.2 rounded text-[10px] font-bold border ${getModeBadgeClass(
+                  currentWp.mode
+                )}`}
+              >
+                {currentWp.mode}
               </span>
               <span>
-                X (R):{' '}
-                <strong className="text-emerald-400">
-                  {currentWp.x.toFixed(2)}
-                </strong>
+                Z: <strong className="text-sky-400">{currentWp.z.toFixed(2)}</strong>
               </span>
               <span>
-                Ø:{' '}
-                <strong className="text-indigo-400">
-                  {currentWp.x_dia.toFixed(2)}
-                </strong>
+                X: <strong className="text-emerald-400">{currentWp.x.toFixed(2)}</strong>
+              </span>
+              <span>
+                Ø: <strong className="text-indigo-400">{currentWp.x_dia.toFixed(2)}</strong>
               </span>
               {currentWp.f !== undefined && currentWp.f !== null && (
-                <span>
+                <span className="hidden sm:inline">
                   F: <strong className="text-amber-400">{currentWp.f}</strong>
                 </span>
               )}
             </div>
-            <span className="text-slate-500 text-[11px] truncate max-w-[140px]" title={currentWp.op_name}>
+            <span className="text-slate-500 text-[10px] truncate ml-2 max-w-[150px] sm:max-w-xs" title={currentWp.op_name}>
               {currentWp.op_name} (T{currentWp.tool_id})
             </span>
           </>
         ) : (
-          <span className="text-slate-500">No trajectory active</span>
+          <span className="text-slate-500 text-[10px]">No trajectory active</span>
         )}
       </div>
     </div>

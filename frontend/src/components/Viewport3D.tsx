@@ -332,12 +332,12 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
   }
 
   return (
-    <div className="relative w-full h-full bg-slate-950 overflow-hidden select-none">
+    <div className="relative w-full h-full bg-slate-950 overflow-hidden select-none touch-none">
       {/* Three.js Canvas Container */}
-      <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
+      <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing touch-none" />
 
       {/* Viewport Top HUD Controls */}
-      <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-slate-700/60 shadow-lg text-xs text-slate-300">
+      <div className="absolute top-2 left-2 right-2 sm:right-auto flex items-center justify-between sm:justify-start gap-1 bg-slate-900/85 backdrop-blur-md px-2 py-1.5 rounded-lg border border-slate-700/60 shadow-lg text-xs text-slate-300">
         <button
           onClick={resetView}
           title="Reset View"
@@ -357,43 +357,43 @@ export const Viewport3D: React.FC<Viewport3DProps> = ({
           title="2D ZX Side Section"
           className="px-2 py-1 hover:bg-slate-700/70 rounded font-semibold text-sky-400 transition"
         >
-          ZX 2D
+          ZX
         </button>
-        <div className="h-4 w-px bg-slate-700 mx-1" />
+        <div className="h-4 w-px bg-slate-700 mx-0.5" />
         <button
           onClick={onToggleCutaway}
           title="Toggle 3/4 Cutaway Revolve"
-          className={`flex items-center gap-1 px-2 py-1 rounded transition ${
+          className={`flex items-center gap-1 px-1.5 py-1 rounded transition ${
             cutaway ? 'bg-sky-600/30 text-sky-300 border border-sky-500/50' : 'hover:bg-slate-700/70'
           }`}
         >
           <Scissors className="w-3.5 h-3.5" />
-          <span>Cutaway</span>
+          <span className="hidden sm:inline">Cutaway</span>
         </button>
         <button
           onClick={onToggleStock}
           title="Toggle Stock Cylinder Envelope"
-          className={`flex items-center gap-1 px-2 py-1 rounded transition ${
+          className={`flex items-center gap-1 px-1.5 py-1 rounded transition ${
             showStock ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50' : 'hover:bg-slate-700/70'
           }`}
         >
           <Layers className="w-3.5 h-3.5" />
-          <span>Stock</span>
+          <span className="hidden sm:inline">Stock</span>
         </button>
         <button
           onClick={onToggleRapids}
           title="Toggle Rapid (G0) Motion Lines"
-          className={`flex items-center gap-1 px-2 py-1 rounded transition ${
+          className={`flex items-center gap-1 px-1.5 py-1 rounded transition ${
             showRapids ? 'bg-red-600/30 text-red-300 border border-red-500/50' : 'hover:bg-slate-700/70'
           }`}
         >
           <Eye className="w-3.5 h-3.5" />
-          <span>Rapids</span>
+          <span className="hidden sm:inline">Rapids</span>
         </button>
       </div>
 
       {/* Axis legend */}
-      <div className="absolute bottom-3 right-3 bg-slate-900/70 backdrop-blur px-2.5 py-1 rounded border border-slate-800 text-[11px] text-slate-400 font-mono">
+      <div className="hidden sm:block absolute bottom-3 right-3 bg-slate-900/70 backdrop-blur px-2.5 py-1 rounded border border-slate-800 text-[11px] text-slate-400 font-mono">
         Lathe Spindle Z (Longitudinal) | Radial X (Dia/Radius)
       </div>
     </div>
